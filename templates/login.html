@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACE Vault - Login</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+        .login-card {
+            background: #1e1e1e;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+            width: 100%;
+            max-width: 350px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+        h1 { color: #bb86fc; margin-bottom: 1.5rem; }
+        .google-btn {
+			display: flex;
+			align-items: center;
+			justify-content: center;
+			background-color: #ffffff;
+			color: #000;
+			text-decoration: none;
+			padding: 10px;
+			border-radius: 5px;
+			font-weight: bold;
+			margin-bottom: 1.5rem;
+			transition: background-color 0.2s;
+		}
+
+		.google-btn:hover {
+			background-color: #f1f1f1;
+		}
+
+		.google-icon {
+			width: 20px;   /* Exact size */
+			height: 20px;
+			margin-right: 12px; /* Space between logo and text */
+		}
+        hr { border: 0; border-top: 1px solid #333; margin: 1.5rem 0; }
+        input {
+            width: 100%;
+            padding: 12px;
+            margin: 8px 0;
+            background: #2c2c2c;
+            border: 1px solid #444;
+            color: white;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #bb86fc;
+            border: none;
+            color: #000;
+            font-weight: bold;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover { background: #a370f7; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>TRACE Vault</h1>
+        
+        <a href="{{ url_for('google_login', next=next) }}" class="google-btn">
+			<img class="google-icon" src="https://fonts.gstatic.com/s/i/productlogos/googleg/v6/24px.svg" alt="Google Logo">
+			Sign in with Google
+		</a>
+
+        <hr>
+        
+        <p style="font-size: 0.85rem; color: #888; margin-top: 15px;">
+			No account? <a href="{{ url_for('register', next=request.args.get('next')) }}" style="color: #bb86fc; text-decoration: none; font-weight: bold;">Sign up manually</a>
+		</p>
+
+        <form method="POST" action="{{ url_for('login', next=request.args.get('next')) }}">
+			<input type="email" name="email" placeholder="Email Address" required>
+			<input type="password" name="password" placeholder="Password" required>
+			<button type="submit">Sign In</button>
+		</form>
+		
+		{% with messages = get_flashed_messages() %}
+		  {% if messages %}
+			{% for message in messages %}
+			  <div style="background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 1px solid #ff4444; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.85rem;">
+				{{ message }}
+			  </div>
+			{% endfor %}
+		  {% endif %}
+		{% endwith %}		
+    </div>
+</body>
+</html>

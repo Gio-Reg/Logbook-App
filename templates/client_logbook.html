@@ -1,0 +1,973 @@
+{% extends "base.html" %}
+{% block content %}
+
+<script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
+<script src="https://apis.google.com/js/api.js"></script>
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+<style>
+	:root{--accent:#C5A059;--gold-gloss:linear-gradient(180deg,#F1D399 0%,#C5A059 50%,#8E7341 100%)}.glossy-gold{background:var(--gold-gloss);-webkit-background-clip:text;-webkit-text-fill-color:transparent;display:inline-block;filter:drop-shadow(0px 1px 1px rgba(0,0,0,0.3))}
+    body { background-color: #0a0a0a; color: #e0e0e0; font-family: 'Inter', sans-serif; }
+	.log-container h2{text-align:center;color:var(--accent);font-size:2rem;margin-bottom:30px;letter-spacing:1px;text-transform:uppercase}
+    
+    .log-entry-item { background: var(--card); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 15px; overflow: visible !important; }
+    .log-header { padding: 20px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; background: #1f1f1f; border-radius: 12px 12px 0 0; }
+    .date-badge { color: var(--accent); font-weight: bold; font-size: 0.85rem; text-transform: uppercase; }
+	.lesson-title{color:#fff;font-size:1rem;margin-left:15px;font-family:'Inter',sans-serif;font-weight:500!important;letter-spacing:0.3px;font-style:normal!important;text-transform:none!important}
+    .log-content { display: none; padding: 25px; border-top: 1px solid var(--border); overflow: visible !important; }
+    .log-content.active { display: block; !important}
+    
+    /* TRACE Dark Theme for the Editor */
+    .expanded-mode{position:fixed;top:5vh;left:50%;transform:translateX(-50%);width:90%;max-width:1000px;height:85vh;z-index:9999;background:#0a0a0a;padding:30px;box-sizing:border-box;overflow-y:auto;border:2px solid var(--accent)!important;border-radius:12px;box-shadow:0 0 50px rgba(0,0,0,0.8)}
+	.expanded-mode .ql-container{font-size:1.1rem;height:60vh!important}
+	.ql-toolbar.ql-snow{background:#1a1a1a!important;border:1px solid #333!important;border-bottom:none!important;border-radius:8px 8px 0 0}
+	.ql-container.ql-snow{background:#0f0f0f!important;border:1px solid #333!important;border-radius:0 0 8px 8px;color:#e0e0e0!important;font-family:'Inter',sans-serif!important}
+	.ql-snow .ql-stroke{stroke:#888!important}.ql-snow .ql-fill{fill:#888!important}.ql-snow .ql-picker{color:#888!important}
+	.ql-snow.ql-toolbar button:hover .ql-stroke,.ql-snow.ql-toolbar button.ql-active .ql-stroke{stroke:var(--accent)!important}
+
+	/* TRACE documents */
+	.docs-section{margin-top:20px;padding-top:15px;border-top:1px solid #222}
+	.doc-list-container a:hover{background: #222;border-color: var(--accent);color: #fff;}
+	.btn-outline{background:transparent;border:1px solid #444;color:#888;padding:8px 16px;border-radius:6px;transition:0.3s;cursor:pointer}
+	.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+	
+    /* Media Controls */
+    .media-controls-box { background: #252525; border-radius: 8px; padding: 20px; text-align: center; margin-bottom: 25px; }
+    .media-input { width: 100%; max-width: 500px; padding: 10px; border-radius: 8px; background: #111; color: white; border: 1px solid #444; margin-bottom: 15px; }
+    .action-btn { padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; border: none; transition: 0.2s; }
+    .btn-gold { background: var(--accent); color: #000; }
+    .btn-gold:hover { background: #e6c200; }
+    .btn-outline { background: transparent; color: #fff; border: 1px solid #555; }
+    .btn-outline:hover { background: #333; }
+    .media-delete-btn{position:absolute;top:5px;right:5px;background:#ff4d4d;color:#fff;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:100;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:transform .2s}.media-delete-btn:hover{background:#ff1a1a;transform:scale(1.1)}
+
+    /* Compact Grid - Left-Aligned Bottom Note */
+	.media-grid{display:grid;grid-template-columns:repeat(auto-fit,220px);gap:15px;justify-content:center;margin-bottom:30px;width:100%}@media(max-width:480px){.media-grid{grid-template-columns:1fr;justify-items:center}}
+    .video-slot { width: 220px; height: 220px; position: relative; background: #000; border-radius: 20px; cursor: pointer; }
+    .video-container { position: absolute; width: 340px; height: 600px; background: #000; border-radius: 20px; border: 1px solid #333; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) scale(0.647); clip-path: inset(130px 0 round 20px); transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1); z-index: 1; }
+    .video-container.is-open { z-index: 9999; transform: translate(-50%, -50%) scale(1) !important; clip-path: none !important; border-color: var(--accent); width: 90vw !important; height: 90vh !important; max-width: 1000px; box-shadow: 0 40px 120px #000; }
+    .video-mask { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #000; border-radius: 20px; overflow: hidden; }
+    .video-mask iframe, .video-mask video, .video-mask img { width: 100% !important; height: 100% !important; border: none; object-fit: contain !important; background: #000; }
+	.media-note-overlay{position:absolute;bottom:0!important;left:0;width:100%;background:rgba(0,0,0,0.85);color:var(--accent);font-size:13px!important;padding:12px 10px!important;z-index:200!important;cursor:text;text-align:left;border-bottom-left-radius:20px;border-bottom-right-radius:20px;box-sizing:border-box;pointer-events:auto!important;min-height:42px;display:block!important}.is-open .media-note-overlay{display:none!important}.note-input{background:#111;color:#fff;border:1px solid var(--accent);width:100%;font-size:13px;padding:6px;outline:none;border-radius:6px;font-family:inherit;box-shadow:inset 0 0 5px rgba(0,0,0,0.5)}
+    .is-open .media-note-overlay { display: none !important; }
+    .btn-group { position: absolute; top: 135px; right: 10px; display: flex; gap: 8px; z-index: 1010; opacity: 0; transition: opacity 0.3s; }
+    .is-open .btn-group { opacity: 1; top: 15px; right: 15px; }
+    .zoom-overlay-btn { position: absolute; top: 135px; right: 10px; width: 30px; height: 30px; background: rgba(0,0,0,0.5); border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 10; border: 1px solid rgba(255,255,255,0.2); }
+
+    /* Photos */
+    .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px; }
+	.photo-item{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:visible!important;border:1px solid #444;background:#111;transition:transform .3s ease;z-index:1}.photo-item:hover{transform:scale(2.7);z-index:100!important;box-shadow:0 10px 30px rgba(0,0,0,0.8);border-color:var(--accent)}.photo-item img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;border-radius:12px}
+    .photo-item img { width: 100%; height: 100%; object-fit: cover; transition: 0.3s ease; cursor: pointer; }
+    .photo-delete-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border: none; border-radius: 50%; background: var(--danger); color: white; font-weight: bold; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-size: 14px; }
+    .photo-item:hover .photo-delete-btn { display: flex; }
+
+    /* UI Elements */
+	.btn-group{position:absolute;top:5px;right:5px;display:flex;align-items:center;gap:8px;z-index:100}.ui-btn.minimize-btn{background:var(--accent);color:#000;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;font-weight:bold;line-height:1;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:transform .2s}.ui-btn.minimize-btn:hover{transform:scale(1.1);background:#ffea00}.media-delete-btn{position:static;background:#ff4d4d;color:#fff;border:none;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,.3);transition:transform .2s}.media-delete-btn:hover{background:#ff1a1a;transform:scale(1.1)}
+    .is-open .btn-group { opacity: 1; }
+    /*.ui-btn { width: 26px; height: 26px; border: none; border-radius: 50%; color: white; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; } */
+    .delete-btn { background: var(--danger); }
+    .minimize-btn { background: #ffa502; }
+    .zoom-overlay-btn { position: absolute; top: 10px; right: 10px; width: 30px; height: 30px; background: rgba(0,0,0,0.5); border-radius: 50%; color: #fff; display: flex; align-items: center; justify-content: center; z-index: 10; cursor: pointer; border: 1px solid rgba(255,255,255,0.2); }
+    .is-open .zoom-overlay-btn { display: none; }
+	.media-note-overlay{position:absolute;bottom:0!important;left:0;width:100%;background:rgba(0,0,0,0.8);color:var(--accent);font-size:13px!important;padding:12px 10px!important;z-index:100!important;cursor:text;text-align:left;border-bottom-left-radius:20px;border-bottom-right-radius:20px;box-sizing:border-box;pointer-events:auto!important;min-height:42px;display:block!important;border-top:1px solid rgba(255,215,0,0.1)}.is-open .media-note-overlay{display:none!important}.note-input{background:#111;color:#fff;border:1px solid var(--accent);width:100%;font-size:13px;padding:6px;outline:none;border-radius:6px;font-family:inherit}
+    .is-open .media-note-overlay { display: none !important; }
+    .note-input { background: #000; color: #fff; border: 1px solid var(--accent); width: 100%; font-size: 11px; padding: 2px 5px; outline: none; border-radius: 4px; }
+    .video-container.is-open iframe, .video-container.is-open video { max-width: 100%; max-height: 100%; }
+    .ui-btn{background:var(--accent);color:#000;border:none;padding:10px 20px;border-radius:8px;font-weight:bold;cursor:pointer;display:flex;align-items:center;gap:8px;transition:transform .2s}.ui-btn:hover{transform:scale(1.05)}.ui-btn.secondary-btn{background:transparent;border:1px solid var(--border);color:#888}.ui-btn.secondary-btn:hover{border-color:var(--accent);color:var(--accent)} 
+
+    @keyframes pulse-opacity { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+    .progress-pulse { animation: pulse-opacity 1.5s infinite ease-in-out; }
+
+    .toast-notification{position:fixed;top:20px;right:20px;background:var(--accent);color:#000;padding:15px 25px;border-radius:12px;font-weight:bold;z-index:10001;box-shadow:0 10px 30px rgba(0,0,0,0.8);border:2px solid #000;animation:slideIn 0.5s ease-out;transition:opacity 0.5s ease}.toast-notification.fade-out{opacity:0}
+    @keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+    .magic-push-overlay{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:linear-gradient(135deg,#FFD700,#FFA500);color:#000;padding:18px 35px;border-radius:50px;font-weight:800;font-size:1.1rem;cursor:pointer;z-index:10002;box-shadow:0 10px 30px rgba(0,0,0,.5);border:2px solid rgba(255,255,255,.3);transition:all .3s ease}
+    .magic-push-overlay:hover{transform:translateX(-50%) scale(1.05);box-shadow:0 15px 40px var(--accent)}
+
+    .compact-date-input{background:#000;border:1px solid var(--border);color:#fff;padding:8px;border-radius:6px;font-family:inherit;outline:none}.compact-date-input::-webkit-calendar-picker-indicator{filter:invert(1)}
+    .calendar-nav{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:30px;padding:15px;background:var(--card);border:1px solid var(--border);border-radius:12px}.compact-date-input{background:#000;border:1px solid var(--border);color:#fff;padding:8px;border-radius:6px;outline:none}.compact-date-input::-webkit-calendar-picker-indicator{filter:invert(1)}
+    .log-entry-item:target{border:2px solid var(--accent);box-shadow:0 0 20px rgba(255,215,0,.3)}
+
+	.editable-title{background:transparent;border:none;color:#ffffff!important;font-size:1.1rem;font-family:'Inter',sans-serif;font-weight:400!important;font-style:normal!important;text-transform:none!important;padding:2px 5px;border-radius:4px;outline:none;transition:background 0.3s;width:100%}.editable-title:hover,.editable-title:focus{background:rgba(255,255,255,0.05);border-bottom:1px solid var(--accent)}
+	.header-actions{display:flex;align-items:center;gap:18px;margin-left:15px}.share-btn{background:transparent;border:none;color:var(--accent);cursor:pointer;opacity:0.6;padding:5px;transition:all 0.2s}.share-btn:hover{opacity:1;transform:scale(1.1)}.delete-btn{background:transparent;border:none;color:var(--danger);cursor:pointer;opacity:0.6;padding:5px;transition:opacity 0.2s}.delete-btn:hover{opacity:1}
+	header.mb-5{width:100%;display:flex;justify-content:center;margin-top:30px;margin-bottom:40px!important}header.mb-5 h1{color:#ffffff!important;text-align:center;font-family:'Inter',sans-serif;font-style:normal!important;text-transform:none!important;font-size:1.7rem!important;font-weight:400;letter-spacing:1px;margin:0;opacity:0.95}		
+
+	#full-screen-warning-overlay{position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.65);z-index:9999999;display:none;align-items:center;justify-content:center;backdrop-filter:blur(3px);pointer-events:all}
+	.warning-card{background:#fff;padding:25px;border-radius:12px;max-width:420px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,0.15);border-top:6px solid #f57c00;font-family:sans-serif}
+	.warning-card h3{color:#e65100;margin:0 0 12px;font-size:1.2em;font-weight:bold}
+	.warning-card p{color:#444;margin:0 0 15px;font-size:0.95em;line-height:1.5}
+	.warning-card button{background:#f57c00;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:1em;transition:background 0.2s}
+	.warning-card button:hover{background:#e65100}
+</style>
+
+<div id="global-compressor-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; flex-direction:column; align-items:center; justify-content:center;">
+    <div class="loader-spinner"></div> 
+    <div id="compressor-status" style="color:var(--accent); font-weight:bold; margin-top:15px; font-family:sans-serif;">Initializing Engine...</div>
+    <div style="width:200px; height:4px; background:#333; margin-top:10px; border-radius:2px;">
+        <div id="compressor-bar" style="width:0%; height:100%; background:var(--accent); transition:0.3s;"></div>
+    </div>
+</div>
+
+<div class="log-container">
+	<header class="mb-5 text-center">
+		<h1 class="text-white" style="display: inline-block;">{{ author.name }}'s Book</h1>
+		<button class="share-btn" title="Share Full Book" onclick="shareFullBook()" style="margin-left: 10px; vertical-align: middle;">
+			<i class="fas fa-share-nodes" style="font-size: 1.2rem;"></i>
+		</button>
+	</header>
+    
+	<div class="main-controls" style="display:flex;gap:15px;justify-content:center;align-items:center;margin-bottom:35px;width:100%;">
+		{% if access_level in ['owner', 'editor']%}
+		<button class="ui-btn" onclick="document.getElementById('dateJump').showPicker()">
+			<i class="fa-solid fa-calendar-days"></i> Select Session
+		</button>
+		
+		<input type="date" id="dateJump" style="display:none" onchange="smartJump(this.value)">
+		
+		<button class="ui-btn secondary-btn" onclick="goToHome()">
+			<i class="fa-solid fa-house"></i> Home
+		</button>
+		{% endif %}
+	</div>
+
+    {% for log in logs %}
+    <div class="log-entry-item" id="entry_{{ log.id }}">        
+        <div class="log-header" onclick="toggleEntry(this)">
+			<div style="display: flex; align-items: center; flex: 1;">
+				<span class="date-badge">{{ log.date.strftime('%d %b %Y') if log.date else 'Date N/A' }}</span>
+				
+				<div style="margin-left: 15px; flex: 1;" onclick="event.stopPropagation()">
+					{% if access_level in ['owner', 'editor'] %}
+						<input type="text" 
+							   class="editable-title" 
+							   value="{{ log.lesson_title if log.lesson_title else (log.context_id if log.context_id else 'Session Title') }}" 
+							   onblur="updateTitle('{{ log.id }}', this.value)"
+							   onkeydown="if(event.key==='Enter') this.blur()">
+					{% else %}
+						<span style="color: #fff; font-size: 1.1rem;">{{ log.lesson_title if log.lesson_title else (log.context_id if log.context_id else 'Session Title') }}</span>
+					{% endif %}
+				</div>
+			</div>
+
+			<div class="header-actions">
+				<button class="share-btn" title="Share this session" onclick="event.stopPropagation(); shareSingleLog('{{ log.id }}')">
+					<i class="fas fa-share-nodes"></i>
+				</button>
+				
+				{% if access_level in ['owner', 'editor'] %}
+				<button class="delete-btn" title="Delete log" onclick="event.stopPropagation(); deleteEntireLog('{{ log.id }}')">
+					<i class="fas fa-trash-alt"></i>
+				</button>
+				{% endif %}
+				
+				<i class="fas fa-chevron-down" style="color: #555;"></i>
+			</div>
+		</div>
+
+        <div class="log-content">	
+			{% if access_level in ['owner', 'editor'] %}
+			<div class="media-controls-box">
+				<p class="section-title" style="text-align: center;">ADD PRACTICE MATERIAL</p>
+				<input type="text" id="link_{{ log.id }}" class="media-input" placeholder="Paste IG, TikTok, YouTube, or FB link..." onkeypress="if(event.key === 'Enter') pushToMyLogbook(this.value, '{{ log.id }}')">
+				<div style="display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+					<button class="action-btn btn-gold" onclick="saveLinkData('{{ log.id }}')"><i class="fas fa-link"></i> Add Link</button>
+					<button class="action-btn btn-gold" onclick="document.getElementById('file-input-{{ log.id }}').click()">
+						<i class="fas fa-video"></i> Upload Video
+					</button>
+					<input type="file" id="file-input-{{ log.id }}" style="display: none;" accept="video/*" onchange="handleVideoSelection(event, false)">                    
+					<button class="action-btn btn-outline" onclick="openCloudinaryWidget('{{ log.id }}', 'photo')"><i class="fas fa-camera"></i> Upload Photo</button>
+				</div>
+			</div>
+			{% endif %}
+
+            <div class="media-grid" id="vid_grid_{{ log.id }}">
+                {% set coach_vids = (log.video_url or "").split(',') %}
+                {% set student_vids = (log.video_url_homework or "").split(',') %}
+                {% set all_vids = [] %}
+                {% for v in coach_vids if v.strip() %}{% set _ = all_vids.append(v.strip()) %}{% endfor %}
+                {% for v in student_vids if v.strip() %}{% set _ = all_vids.append(v.strip()) %}{% endfor %}
+
+                {% for vid_item in all_vids %}
+                    <div class="video-slot {% if 'PROCESSING_YOUTUBE' in vid_item %}is-processing{% endif %}" 
+                        data-full-url="{{ vid_item }}" 
+                        data-bid="{{ log.id }}">
+                        
+                        {% if 'PROCESSING_YOUTUBE' in vid_item %}
+                            <div class="processing-indicator" style="color: var(--accent); padding: 20px; text-align: center;">
+                                <i class="fas fa-sync fa-spin"></i>
+                                <p style="font-size: 10px; margin-top: 10px;">VAULT PROCESSING...</p>
+                            </div>
+                        {% endif %}
+                    </div>
+                {% endfor %}
+            </div>
+
+            {% set all_photos = (log.photo_url or "").split(',') %}
+			{% if all_photos|join('')|trim != '' %}
+				<p class="section-title">PHOTO LOGBOOK</p>
+				<div class="photo-grid" id="photo_grid_{{ log.id }}">
+					{# We add a filter inside the 'for' loop to exclude document types #}
+					{% for photo_item in all_photos if photo_item.strip() and "http" in photo_item and ".pdf" not in photo_item.lower() and "/raw/" not in photo_item.lower() and ".xls" not in photo_item.lower() and ".doc" not in photo_item.lower() %}
+						{% set clean_photo_url = photo_item.split('|')[0]|trim %}
+						<div class="photo-item">
+							<img src="{{ clean_photo_url }}" alt="Session Photo" onclick="window.open('{{ clean_photo_url }}', '_blank')">
+							<button class="photo-delete-btn" title="Delete Photo" onclick="deleteMedia('{{ log.id }}', '{{ clean_photo_url }}', 'photo_url')">&times;</button>
+						</div>
+					{% endfor %}
+				</div>
+			{% endif %}
+
+            <div class="notes-section mt-4" id="note-container-{{ log.id }}" style="transition: all 0.3s ease;">
+				<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+					<p class="section-title" style="margin: 0;">SESSION NOTES</p>
+					{% if access_level in ['owner', 'editor'] %}
+						<button type="button" onclick="toggleFocusMode({{ log.id }})" class="action-btn btn-outline" style="padding: 2px 8px; font-size: 0.7rem; border: 1px solid #444; background: transparent; color: #888; border-radius: 4px;">
+							<i class="fas fa-expand-alt" id="expand-icon-{{ log.id }}"></i> FOCUS MODE
+						</button>
+					{% endif %}
+				</div>
+
+				{% if access_level in ['owner', 'editor'] %}
+					<div id="editor-{{ log.id }}" class="rich-editor" style="height: 150px; margin-bottom: 15px;">
+						{{ log.notes_coach_after|safe if log.notes_coach_after else "" }}
+					</div>
+					<button class="action-btn btn-gold" style="width: 100%;" onclick="saveRichNote('{{ log.id }}')">Save Session Updates</button>
+				{% else %}
+					<div style="padding: 12px; border-radius: 8px; background: #111; color: #bbb; border: 1px solid #333; min-height: 80px;">
+						{{ log.notes_coach_after|safe if log.notes_coach_after else "No notes added for this session yet." }}
+					</div>
+				{% endif %}
+			</div>
+
+			<div class="docs-section mt-4" style="border-top: 1px solid #222; padding-top: 20px; margin-top: 25px;">
+				<p class="section-title">RESOURCES & DOCUMENTS</p>
+				
+				{% if access_level in ['owner', 'editor'] %}
+				<div style="background: #111; padding: 15px; border-radius: 8px; border: 1px dashed #444; text-align: center; margin-bottom: 15px;">
+					<button class="action-btn btn-outline" onclick="uploadDocument('{{ log.id }}')" style="font-size: 0.8rem;">
+						<i class="fas fa-file-upload"></i> Upload PDF, Doc, XLS or CSV
+					</button>
+				</div>
+				{% endif %}
+
+				<div id="doc-list-{{ log.id }}" class="doc-list-container" style="display: flex; flex-direction: column; gap: 8px;">
+					{% if log.photo_url %}
+						{% for file in log.photo_url.strip(',').split(',') %}
+							{% set url = file.split('|')[0]|trim %}
+							{% if ".pdf" in url.lower() or "/raw/" in url.lower() or ".xls" in url.lower() or ".csv" in url.lower() or ".doc" in url.lower() %}
+							<a href="{{ url }}" target="_blank" rel="noopener noreferrer" style="background: #1a1a1a; padding: 12px 15px; border-radius: 8px; border: 1px solid #333; color: #fff; text-decoration: none; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between; transition: 0.3s;">
+								<div style="display: flex; align-items: center; overflow: hidden;">
+									<i class="fas fa-file-alt" style="margin-right: 12px; color: var(--accent); font-size: 1.2rem;"></i>
+									<span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+										{{ url.split('/')[-1] }}
+									</span>
+								</div>
+								<i class="fas fa-external-link-alt" style="font-size: 0.7rem; opacity: 0.5;"></i>
+							</a>
+							{% endif %}
+						{% endfor %}
+					{% endif %}
+				</div>
+			</div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<script>
+    const studentToken = "{{ author.secret_token }}";
+
+    function cleanFacebookUrl(url) {
+        let cleanUrl = url.split('?')[0];
+        if (cleanUrl.includes("facebook.com/share/r/")) return `https://www.facebook.com/watch/?v=${cleanUrl.split("/share/r/")[1].replace(/\//g, "")}`;
+        if (cleanUrl.includes("/reel/")) return `https://www.facebook.com/watch/?v=${cleanUrl.split("/")[cleanUrl.split("/").indexOf("reel") + 1]}`;
+        return cleanUrl;
+    }
+
+	
+	async function handleVideoSelection(event, isHomework = false) {
+		const file = event.target.files[0];
+		if (!file) return;
+
+		// Get the Log ID from the closest parent element
+		const logEntry = event.target.closest('.log-entry-item');
+		const logId = logEntry.id.replace('entry_', '');
+
+		// 1. Show the UI loading overlay
+		document.getElementById('global-compressor-overlay').style.display = 'flex';
+		document.getElementById('compressor-status').innerText = "Sending to TRACE Server...";
+
+		// 2. Wrap the file in a package (FormData)
+		const formData = new FormData();
+		formData.append('file', file);
+		formData.append('is_homework', isHomework);
+
+		try {
+			// 3. The Big Change: Send to YOUR Python backend, NOT Google
+			const response = await fetch(`/upload-media/${logId}`, {
+				method: 'POST',
+				body: formData
+			});
+
+			const data = await response.json();
+
+			// 4. Handle the Debugging info we set up in Python
+			if (data.debug_status === "STOPPED") {
+				alert(`ORIENTATION DETECTED:\nVertical: ${data.is_vertical}\nDecision: ${data.is_vertical ? 'Drive' : 'YouTube'}`);
+				document.getElementById('global-compressor-overlay').style.display = 'none';
+				return; 
+			}
+
+			if (data.success) {
+				location.reload();
+			} else {
+				alert("Upload failed: " + data.message);
+			}
+		} catch (error) {
+			console.error("Error:", error);
+			alert("Could not reach the server.");
+		} finally {
+			document.getElementById('global-compressor-overlay').style.display = 'none';
+		}
+	}
+
+    async function checkJobStatus(jobId, logID, isHomework) {
+        const statusLabel = document.getElementById('compressor-status');
+        const overlay = document.getElementById('global-compressor-overlay');
+        const progressBar = document.getElementById('compressor-bar');
+        
+        const poll = async () => {
+            try {
+                const response = await fetch(`/job-status/${jobId}`);
+                const data = await response.json();
+
+                if (data.status === 'finished' && data.cloudinary_url) {
+                    statusLabel.innerText = "Success! Updating Logbook...";
+                    if(progressBar) { progressBar.style.width = '100%'; progressBar.style.background = "#2ecc71"; }
+                    const updateField = isHomework ? 'video_url_homework' : 'video_url';
+                    await sendUpdate(logID, { [updateField]: data.cloudinary_url }, false);                    
+                    window.location.href = window.location.pathname + window.location.search + "#entry_" + logID;
+                    window.location.reload();
+                } else if (data.status === 'error' || data.status === 'failed') {
+                    statusLabel.innerText = "Compression failed. Please try again.";
+                    if(progressBar) progressBar.style.background = "var(--danger)";
+                    setTimeout(() => { overlay.style.display = 'none'; }, 4000);
+                } else {
+                    let p = data.percent_done || 0;
+                    if (data.status === 'finalizing') {
+                        statusLabel.innerText = "Finalizing: Saving to Cloudinary...";
+                        if(progressBar) { progressBar.style.width = '98%'; progressBar.classList.add('progress-pulse'); }
+                    } else {
+                        statusLabel.innerText = `Compressing Video: ${p}%`;
+                        if(progressBar) progressBar.style.width = (p > 5 ? p : 5) + '%';
+                    }
+                    setTimeout(poll, 3000);
+                }
+            } catch (err) { setTimeout(poll, 5000); }
+        };
+        poll();
+    }
+
+    function uploadToCloudinary(file, logID, isHomework) {
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('upload_preset', 'classcraft_preset'); 
+        formData.append('cloud_name', 'dugmz1fdw');
+        const statusLabel = document.getElementById('compressor-status');
+        const progressBar = document.getElementById('compressor-bar');
+
+        fetch('https://api.cloudinary.com/v1_1/dugmz1fdw/video/upload', { method: 'POST', body: formData })
+        .then(r => r.json())
+        .then(data => {
+            if (data.secure_url) {
+                if(progressBar) progressBar.style.width = '100%';
+                if(statusLabel) statusLabel.innerText = "Success! Updating Logbook...";
+                const updateField = isHomework ? 'video_url_homework' : 'video_url';
+                sendUpdate(logID, { [updateField]: data.secure_url }, false).then(() => {
+					refreshWithContext(logID);
+                });
+            } else {
+                if(statusLabel) statusLabel.innerText = "Upload failed.";
+                setTimeout(() => { document.getElementById('global-compressor-overlay').style.display = 'none'; }, 3000);
+            }
+        });
+    }
+    
+    function loadThumbnails() {
+        document.querySelectorAll('.video-slot').forEach(slot => {
+            const rawData = slot.getAttribute('data-full-url');
+            const logID = slot.getAttribute('data-bid');
+            if (!rawData || slot.innerHTML.trim() !== "") return;
+
+            const parts = rawData.split('|');
+            const mediaUrl = parts[0].trim();
+            const mediaNote = parts[1] ? parts[1].trim() : "";
+            let mediaElement = "";
+
+            if (mediaUrl.match(/\.(jpeg|jpg|gif|png|webp)$/i) || mediaUrl.includes("/image/upload/")) {
+                mediaElement = `<img src="${mediaUrl}" crossorigin="anonymous">`;
+            }
+            else if (mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be")) {
+				let yid = mediaUrl.includes("youtu.be/") 
+					? mediaUrl.split("youtu.be/")[1]?.split("?")[0] 
+					: mediaUrl.split("v=")[1]?.split("&")[0];
+				mediaElement = `<iframe src="https://www.youtube-nocookie.com/embed/${yid}" 
+					frameborder="0" referrerpolicy="strict-origin-when-cross-origin"
+					allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+					allowfullscreen></iframe>`;
+			}
+			else if (mediaUrl.includes("youtube.com") || mediaUrl.includes("youtu.be")) {
+                let yid = mediaUrl.includes("youtu.be/") 
+                    ? mediaUrl.split("youtu.be/")[1]?.split("?")[0] 
+                    : mediaUrl.split("v=")[1]?.split("&")[0];                    
+                mediaElement = `<iframe src="https://www.youtube.com/embed/${yid}" 
+                    frameborder="0" referrerpolicy="strict-origin-when-cross-origin" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                    allowfullscreen></iframe>`;
+            } else if (mediaUrl.includes("cloudinary.com")) {
+                mediaElement = `<video crossorigin="anonymous" controls playsinline preload="metadata" src="${mediaUrl}"></video>`;
+            } else if (mediaUrl.includes("drive.google.com")) {
+                let driveId = mediaUrl.includes("/file/d/") ? mediaUrl.split("/file/d/")[1].split("/")[0] : mediaUrl.split("id=")[1].split("&")[0];
+                mediaElement = `<div class="drive-container" style="width:100%; height:100%; position:relative; background:#000; cursor:pointer;" onclick="this.innerHTML='<iframe src=\\'https://drive.google.com/file/d/${driveId}/preview\\' style=\\'width:100%; height:100%; border:none;\\' allow=\\'autoplay; fullscreen\\' allowfullscreen=\\'true\\'></iframe>';"><img src="https://drive.google.com/thumbnail?id=${driveId}&sz=w800" style="width:100%; height:100%; object-fit:cover; opacity:0.8;" alt="Thumbnail"><div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:48px; pointer-events:none;"><i class="fas fa-play-circle"></i></div></div>`;
+            } else if (mediaUrl.includes("tiktok.com")) {
+                const id = mediaUrl.match(/\/video\/(\d+)/)?.[1];
+                mediaElement = `<iframe src="https://www.tiktok.com/embed/v2/${id}" scrolling="no" allowfullscreen="true"></iframe>`;
+            } else if (mediaUrl.includes("instagram.com")) {
+                const match = mediaUrl.match(/\/(?:reels|reel|p)\/([A-Za-z0-9_-]+)/);
+                if(match) mediaElement = `<iframe src="https://www.instagram.com/reel/${match[1]}/embed" scrolling="no" allowfullscreen="true"></iframe>`;
+            } else if (mediaUrl.includes("facebook.com") || mediaUrl.includes("fb.watch")) {
+                const safeUrl = cleanFacebookUrl(mediaUrl);
+                const embedURL = `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(safeUrl)}&show_text=false&width=340&mute=0&autoplay=0`;
+                mediaElement = `<iframe src="${embedURL}" scrolling="no" frameborder="0" allowfullscreen="true" allow="autoplay; encrypted-media;"></iframe>`;
+            }
+
+			// Replace the button line inside your loadThumbnails innerHTML template:
+			slot.innerHTML = `
+				<div class="zoom-overlay-btn"><i class="fas fa-expand"></i></div>
+				<div class="video-container">
+					<div class="btn-group">
+						<button class="ctrl-btn minimize-btn" title="Shrink">&minus;</button>
+						<button class="media-delete-btn" title="Delete" onclick="deleteMedia('${logID}', '${mediaUrl}', 'video_url')">
+							<i class="fa-solid fa-xmark"></i>
+						</button>
+					</div>
+					<div class="video-mask">${mediaElement}</div>
+				</div>
+				<div class="media-note-overlay" onclick="editNote(event, this, '${logID}', '${mediaUrl}')">
+					${mediaNote || "Add note..."}
+				</div>`;
+				
+            const container = slot.querySelector('.video-container');
+            slot.querySelector('.zoom-overlay-btn').onclick = () => container.classList.add('is-open');
+            slot.querySelector('.minimize-btn').onclick = (e) => { e.stopPropagation(); container.classList.remove('is-open'); };
+        });
+    }
+
+    function toggleEntry(header) {
+        header.nextElementSibling.classList.toggle('active');
+        const icon = header.querySelector('i');
+        if (icon.classList.contains('fa-chevron-down')) icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+        else icon.classList.replace('fa-chevron-up', 'fa-chevron-down');
+    }
+
+    function sendUpdate(logID, payload, shouldReload = true) {
+		payload.token = studentToken;
+		return fetch(`/save_logbook/${logID}`, { 
+			method: 'POST', 
+			headers: { 'Content-Type': 'application/json' }, 
+			body: JSON.stringify(payload) 
+		})
+		.then(res => res.json())
+		.then(data => { 
+			if (data.success && shouldReload) {
+				refreshWithContext(logID, data.date);
+			}
+			return data; 
+		});
+	}
+
+    function saveLinkData(logID) {
+        const input = document.getElementById(`link_${logID}`);
+        const val = input.value.trim();
+        if(val) {
+            sendUpdate(logID, { 
+                video_url: val, 
+                is_homework: true // This ensures it goes to the right column
+            }).then(() => {
+                input.value = ""; // Clear input after success
+            });
+        }
+    }
+
+    async function deleteMedia(logId, url, type) {
+		if (!confirm("Are you sure you want to delete this?")) return;
+
+		try {
+			const response = await fetch(`/save_logbook/${logId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				// Uses 'delete_url' to trigger the existing logic in logbook_app.py
+				body: JSON.stringify({ 
+					delete_url: url, 
+					token: studentToken 
+				})
+			});
+
+			if (response.ok) {
+				showToast("🗑️ Item removed");
+				refreshWithContext(logId);
+			} else {
+				showToast("❌ Error deleting item");
+			}
+		} catch (err) {
+			console.error("Delete error:", err);
+		}
+	}
+
+    function saveAllSessionData(logID) {
+        const notes = document.getElementById(`coach_notes_${logID}`).value;
+        sendUpdate(logID, { notes_coach_after: notes });
+    }
+
+    function openCloudinaryWidget(logID, mediaType) {
+        cloudinary.openUploadWidget({ cloudName: 'dugmz1fdw', uploadPreset: 'classcraft_preset', sources: ['local', 'camera'], multiple: true, clientAllowedFormats: mediaType === 'photo' ? ['image'] : ['video'] }, (error, result) => {
+            if (!error && result && result.event === "success") sendUpdate(logID, { append: 'true', is_homework: 'true', [mediaType === 'photo' ? 'photo_url' : 'video_url']: result.info.secure_url }, false); 
+            if (result && result.event === "close") refreshWithContext(logID);
+        });
+    }
+    
+    function editNote(event, element, logID, url) {
+		event.stopPropagation(); 
+		if (element.querySelector('input')) return;
+
+		const currentNote = element.innerText === "Add note..." ? "" : element.innerText;
+		// We use the 'note-input' class defined in the CSS above
+		element.innerHTML = `<input type="text" class="note-input" value="${currentNote}">`;
+		
+		const input = element.querySelector('input');
+		input.focus();
+
+		input.onblur = () => {
+			const val = input.value.trim();
+			element.innerText = val || "Add note...";
+			sendUpdate(logID, { update_note_for_url: url, new_note: val });
+		};
+
+		input.onkeydown = (e) => { 
+			if(e.key === 'Enter') { 
+				e.preventDefault(); 
+				input.blur(); 
+			} 
+		};
+	}
+    
+    window.addEventListener('load', () => {
+		const urlParams = new URLSearchParams(window.location.search);
+		const targetDateFromQuery = "{{ target_date }}"; // From Flask
+		const logIdFromQuery = urlParams.get('log_id');
+		const hash = window.location.hash;
+
+		let targetEntry = null;
+
+		// 1. Priority: If we have a specific Log ID (Shared link)
+		if (logIdFromQuery) {
+			targetEntry = document.getElementById(`entry_${logIdFromQuery}`);
+		} 
+		// 2. Secondary: If we have a Target Date (from JumpToDate or Upload reload)
+		else if (targetDateFromQuery && targetDateFromQuery !== "None" && targetDateFromQuery !== "") {
+			targetEntry = Array.from(document.querySelectorAll('.log-entry-item')).find(el => {
+				const badge = el.querySelector('.date-badge');
+				if (!badge) return false;
+				
+				// Convert both to lowercase and trim spaces to ensure a match
+				const badgeText = badge.innerText.trim().toLowerCase();
+				const searchDate = targetDateFromQuery.trim().toLowerCase();
+				
+				return badgeText === searchDate;
+			});
+		}
+		// 3. Tertiary: If we just have a URL hash (#entry_123)
+		else if (hash) {
+			targetEntry = document.getElementById(hash.substring(1));
+		}
+
+		// ACTIVATE AND SCROLL
+		if (targetEntry) {
+			const content = targetEntry.querySelector('.log-content');
+			const icon = targetEntry.querySelector('.log-header i');
+			
+			if (content) content.classList.add('active');
+			if (icon) icon.classList.replace('fa-chevron-down', 'fa-chevron-up');
+			
+			// Timeout ensures the thumbnails have started loading so the scroll height is accurate
+			setTimeout(() => {
+				targetEntry.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}, 100);
+		}
+		
+		loadThumbnails(); 
+	});
+
+function refreshWithContext(logId) {
+    let dateStr = "";
+    if (logId) {
+        const badge = document.querySelector(`#entry_${logId} .date-badge`);
+        if (badge) dateStr = badge.innerText.trim();
+    }
+    
+    const url = new URL(window.location.href);
+    if (dateStr) url.searchParams.set('date', dateStr);
+    
+    // Force a reload by adding a unique timestamp
+    url.searchParams.set('refresh', Date.now());
+    
+    if (logId) url.hash = `entry_${logId}`;
+    
+    // Trigger the actual reload
+    window.location.href = url.toString();
+}
+
+async function smartJump(selectedDate) {
+    if (!selectedDate) return;
+
+    // 1. Convert "2026-04-21" to "21 APR 2026"
+    const [year, month, day] = selectedDate.split('-');
+    const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+    const formattedDate = `${day} ${months[parseInt(month) - 1]} ${year}`;
+
+    // 2. Search for the badge on the page
+    const badges = Array.from(document.querySelectorAll('.date-badge'));
+    const match = badges.find(b => b.innerText.trim().toUpperCase() === formattedDate);
+
+    if (match) {
+        // SUCCESS: Redirect to the URL with the date to auto-expand it
+        window.location.href = `?date=${formattedDate}`;
+    } else {
+        // NOT FOUND: Create it
+        if (confirm(`No log found for ${formattedDate}. Create a new session?`)) {
+            await createNewSession(selectedDate, formattedDate);
+        }
+    }
+}
+
+function shareSingleLog(logId) {
+    // This creates a URL like: .../mybook/TOKEN?single_log=123
+    const baseUrl = window.location.origin + window.location.pathname;
+    const shareUrl = `${baseUrl}?log_id=${logId}`;
+
+    navigator.clipboard.writeText(shareUrl).then(() => {
+        showToast("🔗 Link for THIS session copied!");
+    }).catch(err => {
+        console.error('Failed to copy link: ', err);
+    });
+}
+
+function initSaaSPolling() {
+    const processingSlots = document.querySelectorAll('.video-slot.is-processing');
+
+    processingSlots.forEach(slot => {
+        const logId = slot.getAttribute('data-bid');
+        
+        const poll = setInterval(async () => {
+            try {
+                const response = await fetch(`/check-status/${logId}`);
+                const data = await response.json();
+
+                if (data.status === 'ready') {
+                    clearInterval(poll);
+                    // Save a flag in session storage before reloading
+                    sessionStorage.setItem('upload_success', 'true');
+                    refreshWithContext(logId);
+                }
+            } catch (err) {
+                console.error("Polling failed", err);
+            }
+        }, 10000); 
+    });
+}
+
+// Check for the flag on page load to show the notification
+document.addEventListener('DOMContentLoaded', () => {
+    initSaaSPolling();
+    if (sessionStorage.getItem('upload_success')) {
+        showToast("✅ Video successfully added to your Vault!");
+        sessionStorage.removeItem('upload_success'); // Clear it so it doesn't show again
+    }
+});
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.style = "position:fixed; top:20px; right:20px; background:var(--accent); color:#000; padding:15px 25px; border-radius:8px; font-weight:bold; z-index:10001; box-shadow:0 10px 30px rgba(0,0,0,0.5); border: 1px solid #000;";
+    toast.innerText = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 5000); // Disappears after 5 seconds
+}
+
+function jumpToDate() {
+    const selectedDate = document.getElementById('datePicker').value;
+    if (!selectedDate) return;
+
+    // Search for the badge that contains that date string
+    const existingLog = Array.from(document.querySelectorAll('.date-badge'))
+        .find(el => el.innerText.includes(formatDateForSearch(selectedDate)));
+
+    if (existingLog) {
+        const header = existingLog.closest('.log-header');
+        // Expand it if it's closed
+        if (!header.nextElementSibling.classList.contains('active')) {
+            toggleEntry(header);
+        }
+        existingLog.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+        if(confirm(`No log for ${selectedDate}. Create it now?`)) {
+            createNewSession(selectedDate);
+        }
+    }
+}
+
+// Helper to match "2026-04-20" to "20 Apr 2026"
+function formatDateForSearch(dateStr) {
+    const [y, m, d] = dateStr.split('-');
+    const months = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    return `${d} ${months[parseInt(m)-1]} ${y}`;
+}
+
+async function createNewSession(rawDate, formattedDate) {
+    const studentToken = "{{ author.secret_token }}";
+    
+    const response = await fetch('/create_log_json', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+            token: studentToken, 
+            date: rawDate, 
+            lesson_title: "Manual Entry" 
+        })
+    });
+
+    if (response.ok) {
+        showToast("✨ New Session Created!");
+        
+        // Use the formatted date (e.g. 21 APR 2026) in the URL
+        // This ensures the page reloads and immediately EXPANDS the new log
+        const url = new URL(window.location.href);
+        url.searchParams.set('date', formattedDate);
+        
+        setTimeout(() => {
+            window.location.href = url.toString();
+        }, 800);
+    }
+}
+
+// 1. The Global Push Function
+const pushToMyLogbook = async (url, logId) => {
+    try {
+        const response = await fetch(`/save_logbook/${logId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ video_url: url, token: studentToken })
+        });
+        if (response.ok) {
+            showToast("✨ Video Pushed Successfully!");
+            const btn = document.getElementById('magic-push-btn');
+            if (btn) btn.style.display = 'none';
+            /* Replaced location.reload() with your context-aware helper */
+            setTimeout(() => refreshWithContext(logId), 1000);
+        }
+    } catch (err) { console.error("Network error:", err); }
+};
+
+// 2. The Smart Listener
+/* window.addEventListener('focus', async () => {
+    try {
+        const text = await navigator.clipboard.readText();
+        // Only show if it's a URL and not the one we just processed
+        if (text.startsWith('http') && text !== sessionStorage.getItem('last_push')) {
+            showMagicButton(text);
+        }
+    } catch (e) { 
+        // Silently fail if clipboard permission is denied
+    }
+});
+*/
+
+function showMagicButton(url) {
+    let btn = document.getElementById('magic-push-btn');
+    if (!btn) {
+        btn = document.createElement('div');
+        btn.id = 'magic-push-btn';
+        btn.className = 'magic-push-overlay';
+        btn.innerHTML = `✨ Push Video to Today's Log?`;
+        document.body.appendChild(btn);
+    }
+    
+    btn.style.display = 'block';
+    
+    btn.onclick = async (e) => {
+        e.stopPropagation();
+        let topLog = document.querySelector('.log-entry-item');
+        
+        // Use the Jinja variable directly here
+        const accessLevel = "{{ access_level }}"; 
+
+        if (!topLog) {
+            if (accessLevel === 'owner') {
+                const today = new Date().toISOString().split('T')[0];
+                showToast("Creating today's log first...");
+                await createNewSession(today);
+            } else {
+                showToast("Only the owner can create a new log.");
+            }
+            return;
+        }
+
+        const logId = topLog.getAttribute('data-bid');
+        sessionStorage.setItem('last_push', url);
+        pushToMyLogbook(url, logId);
+    };
+}
+
+async function updateTitle(logId, newTitle) {
+    try {
+        const response = await fetch(`/save_logbook/${logId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lesson_title: newTitle })
+        });
+        if (response.ok) { showToast("Title updated"); }
+    } catch (err) { console.error("Update failed:", err); }
+}
+
+async function deleteEntireLog(logId) {
+    if (!confirm("Permanently delete this entire log?")) return;
+    try {
+        const response = await fetch(`/delete_log/${logId}`, { method: 'POST' });
+        if (response.ok) {
+            showToast("Log deleted");
+            location.reload();
+        }
+    } catch (err) { console.error("Delete failed:", err); }
+}
+
+function goToHome() {
+    // This strips everything after the /mybook/token part of the URL
+    window.location.href = window.location.pathname;
+}
+
+// 1. Initialize Editors
+const editors = {};
+document.querySelectorAll('.rich-editor').forEach(el => {
+    const id = el.id.split('-')[1];
+    editors[id] = new Quill(`#${el.id}`, {
+        theme: 'snow',
+        modules: {
+            toolbar: [
+                ['bold', 'italic', 'underline'],
+                [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                ['link', 'clean']
+            ]
+        }
+    });
+});
+
+// 2. Renamed Expand Function for Focus Mode
+function toggleFocusMode(logId) {
+    const container = document.getElementById(`note-container-${logId}`);
+    const editorEl = document.getElementById(`editor-${logId}`);
+    const icon = document.getElementById(`expand-icon-${logId}`);
+    const isExpanded = container.classList.toggle('expanded-mode');
+
+    if (isExpanded) {
+        editorEl.style.height = "75vh";
+        icon.className = "fas fa-compress-alt";
+        container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+        editorEl.style.height = "150px";
+        icon.className = "fas fa-expand-alt";
+    }
+}
+
+// 3. Fixed Save Function with Token Authorization
+async function saveRichNote(logId) {
+    const content = editors[logId].root.innerHTML;
+    // Extract token from URL (e.g., /mybook/abc12345)
+    const pathParts = window.location.pathname.split('/');
+    const token = pathParts[pathParts.length - 1];
+
+    try {
+        const response = await fetch(`/save_logbook/${logId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                notes_coach_after: content, // Matches your backend field
+                token: token               // Required for Authorization
+            })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showToast("Session updates saved");
+        } else {
+            showToast("Error: " + (result.message || "Unauthorized"));
+        }
+    } catch (err) {
+        console.error("Save failed:", err);
+        showToast("Connection error");
+    }
+}
+
+function uploadDocument(logId) {
+    cloudinary.openUploadWidget({
+        cloudName: "dugmz1fdw", 
+        uploadPreset: "classcraft_preset",
+        sources: ["local", "url", "google_drive"],
+        resourceType: "raw",
+        use_filename: true,        // Add this
+        unique_filename: true,     // Keeps it unique but keeps the name
+        clientAllowedFormats: ["pdf", "doc", "docx", "xls", "xlsx", "csv"],
+    }, (error, result) => {
+        if (!error && result && result.event === "success") {
+            const fileUrl = result.info.secure_url;
+            saveFileToLog(logId, fileUrl);
+        }
+    });
+}
+
+async function saveFileToLog(logId, url) {
+    const token = window.location.pathname.split('/').filter(Boolean).pop();
+    try {
+        const response = await fetch(`/save_logbook/${logId}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                append: true,
+                photo_url: url, // Reusing your existing photo_url field logic
+                token: token 
+            })
+        });
+        const data = await response.json();
+        if (data.success) {
+            showToast("Document added successfully");
+            location.reload(); // Reload to show the new file link
+        }
+    } catch (err) {
+        console.error("Upload failed:", err);
+    }
+}
+
+function shareFullBook() {
+    const fullUrl = window.location.origin + window.location.pathname;
+    
+    // A simple, non-blocking confirmation
+    if (confirm("⚠️ SHARED ACCESS NOTICE\n\nThis link gives access to your ENTIRE book.\n\nAre you sure you want to copy the link for the WHOLE book?")) {
+        navigator.clipboard.writeText(fullUrl).then(() => {
+            showToast("🔗 FULL BOOK link copied to clipboard!");
+        });
+    }
+}
+
+</script>
+{% endblock %}

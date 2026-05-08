@@ -1,0 +1,13 @@
+Flask==3.1.2
+Flask-SQLAlchemy==3.1.1
+flask-cors==6.0.2
+Flask-Login==0.6.3
+python-dotenv==1.2.1
+google-genai==1.55.0
+google-api-python-client==2.187.0
+google-auth-oauthlib==1.2.3
+google-auth-httplib2==0.2.1
+Authlib==1.7.0
+psycopg2-binary==2.9.11
+gunicorn==25.1.0
+opencv-python-headless==4.13.0.92

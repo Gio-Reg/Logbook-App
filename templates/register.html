@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACE Vault - Register</title>
+    <style>
+        /* Re-use the exact same styles from your login.html for consistency */
+        body { background-color: #121212; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
+        .login-card { background: #1e1e1e; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 24px rgba(0,0,0,0.5); width: 100%; max-width: 350px; text-align: center; border: 1px solid #333; }
+        h1 { color: #bb86fc; margin-bottom: 1.5rem; }
+        input { width: 100%; padding: 12px; margin: 8px 0; background: #2c2c2c; border: 1px solid #444; color: white; border-radius: 4px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #bb86fc; border: none; color: #000; font-weight: bold; border-radius: 4px; cursor: pointer; margin-top: 10px; }
+        .back-link { display: block; margin-top: 20px; color: #888; font-size: 0.8rem; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="login-card">
+        <h1>Join TRACE</h1>
+        <p style="font-size: 0.8rem; color: #888; margin-bottom: 20px;">Create an account to view shared Traces.</p>
+        
+        <form method="POST" action="{{ url_for('register', next=next) }}">
+            <input type="text" name="name" placeholder="Full Name" required>
+            <input type="email" name="email" placeholder="Email Address" required>
+            <input type="password" name="password" placeholder="Choose Password" required>
+			<input type="password" name="confirm_password" id="confirm_password" placeholder="Confirm Password" required oninput="checkPasswordMatch()">
+			<div id="match-message" style="font-size: 0.75rem; margin-top: -5px; margin-bottom: 5px; height: 15px;"></div>
+            <button type="submit">Create Account</button>
+        </form>
+
+        <a href="{{ url_for('login') }}" class="back-link">Already have an account? Log In</a>
+        
+        {% with messages = get_flashed_messages() %}
+		  {% if messages %}
+			{% for message in messages %}
+			  <div style="background: rgba(255, 68, 68, 0.1); color: #ff4444; border: 1px solid #ff4444; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 0.85rem;">
+				{{ message }}
+			  </div>
+			{% endfor %}
+		  {% endif %}
+		{% endwith %}
+    </div>
+    
+    <script>
+	function checkPasswordMatch() {
+		const password = document.getElementById('password').value;
+		const confirm = document.getElementById('confirm_password').value;
+		const message = document.getElementById('match-message');
+		
+		if (confirm === "") {
+			message.innerHTML = "";
+		} else if (password === confirm) {
+			message.style.color = "#4CAF50";
+			message.innerHTML = "Passwords match ✓";
+		} else {
+			message.style.color = "#ff4444";
+			message.innerHTML = "Passwords do not match";
+		}
+	}
+	</script>
+</body>
+</html>

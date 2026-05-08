@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+<style>
+    .admin-container { background: #1e1e1e; padding: 2rem; border-radius: 12px; border: 1px solid #333; margin-top: 20px; }
+    h2 { color: var(--accent); margin-bottom: 1.5rem; text-transform: uppercase; letter-spacing: 2px; }
+    
+    .admin-table { width: 100%; border-collapse: collapse; margin-top: 10px; color: #e0e0e0; }
+    .admin-table th { text-align: left; border-bottom: 2px solid #333; padding: 12px; color: #888; font-size: 0.8rem; text-transform: uppercase; }
+    .admin-table td { padding: 15px 12px; border-bottom: 1px solid #222; font-size: 0.9rem; }
+    
+    .status-badge { font-weight: bold; font-size: 0.75rem; text-transform: uppercase; padding: 4px 8px; border-radius: 4px; }
+    .btn-action { text-decoration: none; font-weight: bold; font-size: 0.8rem; padding: 6px 12px; border-radius: 4px; transition: 0.2s; }
+    .btn-approve { background: #bb86fc; color: #000; }
+    .btn-approve:hover { background: #a370f7; }
+    .btn-revoke { border: 1px solid #ff4444; color: #ff4444; }
+    .btn-revoke:hover { background: #ff4444; color: #fff; }
+    .btn-wipe { background: none; border: 1px solid #666; color: #888; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 0.8rem; font-weight: bold; transition: 0.2s; margin-left: 10px; }
+	.btn-wipe:hover { background: #d63031; color: #fff; border-color: #d63031; }
+</style>
+
+<div class="admin-container">
+    <h2>User Access Management</h2>
+    
+    <table class="admin-table">
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr>
+                <td>
+                    <div style="font-weight: bold;">{{ user.name }}</div>
+                    <div style="font-size: 0.75rem; color: #666;">{{ user.email }}</div>
+                </td>
+                <td>
+                    {% if user.is_approved %}
+                        <span style="color: #4CAF50;">● Approved</span>
+                    {% else %}
+                        <span style="color: #f44336;">● Pending</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <div style="display: flex; align-items: center;">
+                        {% if not user.is_approved %}
+                            <a href="{{ url_for('approve_user', user_id=user.id) }}" class="btn-action btn-approve">Approve</a>
+                        {% else %}
+                            {% if not user.is_admin %}
+                                <a href="{{ url_for('revoke_user', user_id=user.id) }}" class="btn-action btn-revoke">Revoke Access</a>
+                            {% else %}
+                                <span style="color: #555; font-size: 0.7rem;">ADMIN (Locked)</span>
+                            {% endif %}
+                        {% endif %}
+
+                        {% if user.id != current_user.id %}
+                        <form action="{{ url_for('delete_user', user_id=user.id) }}" method="POST" 
+                              style="display:inline;" 
+                              onsubmit="return confirm('WARNING: This will permanently delete {{ user.name }} and ALL their associated log entries. This cannot be undone. Proceed?');">
+                            <button type="submit" class="btn-wipe">Wipe Account</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    
+    <div style="margin-top: 30px; text-align: center;">
+        <a href="{{ url_for('index') }}" style="color: #888; text-decoration: none; font-size: 0.8rem;">← Back to Dashboard</a>
+    </div>
+</div>
+{% endblock %}

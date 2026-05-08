@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block content %}
+<div style="text-align:center; padding:50px;">
+    <h2 style="color:var(--accent);">Access Pending</h2>
+    <p style="color:#888;">Your account is awaiting approval from the Trace owner.</p>
+    
+    <div style="margin-top: 30px;">
+        <div class="loader" style="border: 3px solid #333; border-top: 3px solid var(--accent); border-radius: 50%; width: 30px; height: 30px; animation: spin 2s linear infinite; margin: 0 auto;"></div>
+        <p style="font-size: 0.8rem; color: #555; margin-top: 15px;">Checking status... page will open automatically once approved.</p>
+    </div>
+
+    <a href="{{ url_for('logout') }}" style="color:#666; font-size:0.8rem; margin-top: 40px; display: block;">Logout</a>
+</div>
+
+<style>
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+</style>
+
+<script>
+    // Automatically reload every 10 seconds to check if 'is_approved' is now True
+    setTimeout(function() {
+        window.location.reload();
+    }, 10000);
+</script>
+{% endblock %}

@@ -1,0 +1,54 @@
+# Python environment
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Databases
+*.db
+*.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# unwanted files
+models.py
+get_yt_token.py
+temp_copies.txt
+merge_token_logs.py
+migrate_local.py
+check_db.py
+check_user.py
+set_passwd.py
+shield.py
+GEMINI.md
+requirements_old.txt
+test_drive.py
+trace_process.py
+upload_as_me.py
+uploader.py
+shield_test.mp4
+gioyjo.mp4
+lwf_backup.sh
+migrate_db.py
+cleanup_user.py
+rescue_data.py
+realignment_db.py
+fix_dates_db.py
+
+# unwanted folders
+temp/
+
+# Credentials
+client_secrets.json
+service_account.json
+token.pickle
+token_base64.txt
+
+
