@@ -1,27 +1,31 @@
-import os
-import io
-import uuid
-import threading
-import subprocess
-import json
-import pickle
-import base64
-from datetime import datetime
-import time
+import os, io, uuid, threading, subprocess, json, pickle, base64, re, time
+from datetime import datetime, timedelta, timezone, date as dt_date
+
+# Flask & Security
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, flash, send_from_directory
+from flask_sqlalchemy import SQLAlchemy
+from flask_cors import CORS
+from flask_migrate import Migrate
+from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
+from authlib.integrations.flask_client import OAuth
+
+# Google Services
 from google import genai
 from google.genai import types
 from google.api_core import exceptions
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, flash
-from flask_sqlalchemy import SQLAlchemy
-from flask_cors import CORS  
-from dotenv import load_dotenv
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.auth.transport.requests import Request
-from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from werkzeug.security import generate_password_hash, check_password_hash
-from authlib.integrations.flask_client import OAuth
+
+# Database & External APIs
+from sqlalchemy import MetaData
+import cloudinary, cloudinary.uploader
+from dotenv import load_dotenv
+
+# Local Service
 from utils.youtube_service import YouTubeVaultService
 
 os.makedirs('temp', exist_ok=True)
@@ -31,6 +35,8 @@ processing_lock = threading.Lock()
 # 1. Initialize the TRACE SaaS App
 load_dotenv()
 app = Flask(__name__)
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7) # Stay logged in for a year
+app.config['SESSION_PERMANENT'] = True
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "trace-vault-secret-2026") 
 CORS(app, resources={r"/*": {"origins": "*"}})
 
@@ -39,9 +45,21 @@ uri = os.getenv("DATABASE_URL")
 if uri and uri.startswith("postgres://"):
     uri = uri.replace("postgres://", "postgresql://", 1)
 
+
+
+convention = {
+    "ix": 'ix_%(column_0_label)s',
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s"
+}
+
 app.config['SQLALCHEMY_DATABASE_URI'] = uri or 'sqlite:///standalone_logbook.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
+metadata = MetaData(naming_convention=convention)
+db = SQLAlchemy(app, metadata=metadata)
+migrate = Migrate(app, db, render_as_batch=True)
 
 # --- NEW AUTHENTICATION SETUP ---
 login_manager = LoginManager(app)
@@ -76,6 +94,12 @@ client = genai.Client(
             max_delay=60.0
         )
     )
+)
+
+cloudinary.config(
+  cloud_name = os.getenv("CLOUDINARY_NAME"), 
+  api_key = os.getenv("CLOUDINARY_API_KEY"), 
+  api_secret = os.getenv("CLOUDINARY_API_SECRET")
 )
 
 # 2. The Portable Database/Relations Schema
@@ -125,6 +149,17 @@ class LogEntry(db.Model):
         self.context_id = context_id
         self.user_id = user_id
         self.tier_type = tier_type
+
+class SharedAccess(db.Model):
+    __tablename__ = 'shared_access'
+    id = db.Column(db.Integer, primary_key=True)
+    owner_id = db.Column(db.Integer, db.ForeignKey('authors.id'), nullable=False)
+    guest_token = db.Column(db.String(20), unique=True, default=lambda: str(uuid.uuid4())[:12])
+    role = db.Column(db.String(20)) # 'viewer' or 'editor'
+    access_type = db.Column(db.String(20)) # 'full_book', 'single_day', 'date_range', 'single_log'
+    target_id = db.Column(db.Integer, nullable=True) # Used for single_log
+    start_date = db.Column(db.Date, nullable=True)
+    end_date = db.Column(db.Date, nullable=True)
 
 with app.app_context():
     db.create_all()
@@ -443,49 +478,81 @@ def index():
         return redirect(url_for('view_mybook', token=current_user.secret_token))
     
     return redirect(url_for('login'))
+
+@app.route('/generate_share_link', methods=['POST'])
+@login_required
+def generate_share_link():
+    data = request.json
+    role = data.get('role', 'viewer')
+    access_type = data.get('access_type', 'full_book')
+    target_id = data.get('log_id') # Present if sharing a single log
+
+    # Create a unique 12-character token for this guest
+    new_token = str(uuid.uuid4())[:12]
+    
+    new_access = SharedAccess(
+        owner_id=current_user.id,
+        guest_token=new_token,
+        role=role,
+        access_type=access_type,
+        target_id=target_id
+    )
+    
+    db.session.add(new_access)
+    db.session.commit()
+    
+    # Generate the full link for the guest
+    share_url = url_for('view_mybook', token=new_token, _external=True)
+    
+    return jsonify({"success": True, "share_url": share_url})
     
 @app.route('/mybook/<token>')
-@login_required
 def view_mybook(token):
-    book_owner = Author.query.filter_by(secret_token=token).first_or_404()
+    # --- SCENARIO A: The Master Token (Owner or Master Link Visitor) ---
+    book_owner = Author.query.filter_by(secret_token=token).first()
     
-    if current_user.id == book_owner.id:
-        access_level = 'owner'
-    else:
-        access_level = 'viewer'
-
-    if access_level == 'viewer':
-        if not current_user.is_approved:
-            flash("Your account is pending approval.")
-            return redirect(url_for('pending', next=request.url))
-        
-        if not request.args.get('log_id'):
-            return render_template('guest_welcome.html', author=book_owner)
-
-    single_log_id = request.args.get('log_id')
-    target_date_str = request.args.get('date')
-    
-    if single_log_id:
-        all_logs = LogEntry.query.filter_by(author_id=book_owner.id, id=single_log_id).all()
-    elif access_level == 'owner':
-        if target_date_str:
-            try:
-                target_date = datetime.strptime(target_date_str, '%Y-%m-%d').date()
-                all_logs = LogEntry.query.filter_by(author_id=book_owner.id, date=target_date).order_by(LogEntry.timestamp.desc()).all()
-            except ValueError:
-                all_logs = LogEntry.query.filter_by(author_id=book_owner.id).order_by(LogEntry.date.desc()).all()
-        else:
+    if book_owner:
+        if current_user.is_authenticated and current_user.id == book_owner.id:
+            # Case A1: Authorized Owner is viewing their own book
+            access_level = 'owner'
             all_logs = LogEntry.query.filter_by(author_id=book_owner.id).order_by(LogEntry.date.desc()).all()
-    else:
-        return render_template('guest_welcome.html', author=book_owner)
+        else:
+            # Case A2: Master Link "Trap" (Someone using the master link who isn't the owner)
+            if not current_user.is_authenticated:
+                return redirect(url_for('login', next=request.url))
+            if not current_user.is_approved:
+                flash("Your account is pending approval.")
+                return redirect(url_for('pending', next=request.url))
+            
+            # Redirect to the welcome "trap" page
+            return render_template('guest_welcome.html', author=book_owner)
+            
+        view_token = token
 
+    # --- SCENARIO B: The Guest Token (Granular Permissions) ---
+    else:
+        access = SharedAccess.query.filter_by(guest_token=token).first_or_404()
+        book_owner = Author.query.get(access.owner_id)
+        access_level = access.role  # 'viewer' or 'editor'
+        view_token = access.guest_token
+        
+        # Scope the query based on the Guest Access settings
+        if access.access_type == 'single_log':
+            # Only show the specific log targeted by this link
+            all_logs = LogEntry.query.filter_by(author_id=book_owner.id, id=access.target_id).all()
+        else:
+            # Full Book access (default for viewer/editor)
+            all_logs = LogEntry.query.filter_by(author_id=book_owner.id).order_by(LogEntry.date.desc()).all()
+
+    # --- RENDER ---
     return render_template(
         'client_logbook.html', 
         logs=all_logs, 
         author=book_owner, 
-        access_level=access_level
+        access_level=access_level,
+        view_token=view_token
     )
-                                    
+                 
 @app.route('/create_log_json', methods=['POST'])
 @login_required 
 def create_log_json():
@@ -538,19 +605,116 @@ def create_author(name):
 
     magic_link = f"{request.host_url}mybook/{new_author.secret_token}"
     return f"Link created for {name}: {magic_link}"
-    
 
+
+@app.route('/share-receiver', methods=['GET', 'POST'])
+def share_receiver():
+    token = request.args.get('token')
+    user = Author.query.filter_by(secret_token=token).first() if token else None
+    if not user and not current_user.is_authenticated:
+        return redirect(url_for('login'))
+    active_user = user if user else current_user
+
+    now = datetime.now(timezone.utc)
+    log_entry = LogEntry.query.filter(
+        LogEntry.author_id == active_user.id,
+        db.func.date(LogEntry.date) == now.date()
+    ).first()
+    
+    if not log_entry:
+        log_entry = LogEntry(author_id=active_user.id, date=now, context_id="Mobile Share")
+        db.session.add(log_entry)
+        db.session.commit()
+
+    if 'media' in request.files:
+        files = request.files.getlist('media')
+        for file in files:
+            if file.filename:
+                # 1. Improved detection logic
+                mimetype = file.content_type or ""
+                is_photo = mimetype.startswith('image/') or file.filename.lower().endswith(('.jpg', '.jpeg', '.png', '.webp'))
+                
+                print(f"DEBUG: Processing file {file.filename} (Mime: {mimetype}) - Is Photo: {is_photo}")
+
+                file_uuid = str(uuid.uuid4())[:8]
+                filename = secure_filename(f"share_{file_uuid}_{file.filename}")
+                save_path = os.path.join('temp', filename)
+                file.save(save_path)
+                
+                if is_photo:
+                    try:
+                        # Upload directly so it's ready when we redirect
+                        upload_result = cloudinary.uploader.upload(save_path)
+                        img_url = upload_result.get('secure_url')
+                        
+                        existing = log_entry.photo_url or ""
+                        log_entry.photo_url = f"{existing},{img_url}" if existing else img_url
+                        db.session.commit()
+                        print(f"DEBUG: Photo successfully saved to DB: {img_url}")
+                        os.remove(save_path)
+                    except Exception as e:
+                        print(f"ERROR: Cloudinary upload failed: {e}")
+                else:
+                    # Video path stays in background thread (since they are heavy)
+                    placeholder = "PROCESSING_MOBILE_FILE"
+                    existing = log_entry.video_url or ""
+                    log_entry.video_url = f"{existing},{placeholder}" if existing else placeholder
+                    db.session.commit()
+
+                    thread = threading.Thread(
+                        target=background_upload_task, 
+                        args=(app, save_path, log_entry.id, False, placeholder)
+                    )
+                    thread.start()
+
+    # Handle Links
+    shared_text = request.values.get('text') or ""
+    shared_url = request.values.get('url') or ""
+    combined = f"{shared_text} {shared_url}"
+    match = re.search(r'https?://\S+', combined)
+    if match:
+        final_link = match.group(0)
+        existing_vids = log_entry.video_url or ""
+        if final_link not in existing_vids:
+            log_entry.video_url = f"{existing_vids},{final_link}" if existing_vids else final_link
+            db.session.commit()
+
+    return redirect(url_for('view_mybook', token=active_user.secret_token, log_id=log_entry.id))
+        
+@app.route('/manifest.json')
+def serve_manifest():
+    response = send_from_directory(os.path.join(app.root_path, 'static'), 'manifest.json')
+    # This bypasses the ngrok warning page for background requests
+    response.headers['ngrok-skip-browser-warning'] = 'true'
+    return response
+    
 # 5. The Data API (Bridging the Frontend JS)
 @app.route('/save_logbook/<int:log_id>', methods=['POST'])
-@login_required
 def save_logbook(log_id):
     data = request.json
     token = data.get('token')
     log_entry = LogEntry.query.get_or_404(log_id)
     
-    if log_entry.author_id != current_user.id:
-        return jsonify({"success": False, "message": "Session Unauthorized"}), 403
+    # 1. Authorize Request (Owner OR Guest Editor)
+    is_auth = False
+    if current_user.is_authenticated and log_entry.author_id == current_user.id and token == current_user.secret_token:
+        is_auth = True
+    else:
+        # Verify Editor token scope
+        access = SharedAccess.query.filter_by(guest_token=token, role='editor', owner_id=log_entry.author_id).first()
+        if access:
+            log_date = log_entry.date.date() if log_entry.date else None
+            if access.access_type == 'full_book': is_auth = True
+            elif access.access_type == 'single_log' and access.target_id == log_id: is_auth = True
+            elif access.access_type == 'single_day' and log_date == access.start_date: is_auth = True
+            elif access.access_type == 'date_range' and log_date >= access.start_date and log_date <= access.end_date: is_auth = True
+
+    # If they are neither the Owner nor a valid Guest Editor, boot them out.
+    if not is_auth:
+        return jsonify({"success": False, "message": "Unauthorized scope"}), 403
     
+    # --- FROM HERE ON, WE TRUST THE USER HAS PERMISSION TO EDIT ---
+
     if 'lesson_title' in data:
         log_entry.context_id = data['lesson_title']
         db.session.commit()
@@ -558,15 +722,12 @@ def save_logbook(log_id):
             return jsonify({"success": True})
     
     new_video = data.get('video_url')
-    if new_video:
+    if new_video and 'delete_url' not in data and 'update_note_for_url' not in data and 'append' not in data:
         current = log_entry.video_url or ""
         if new_video not in current:
             log_entry.video_url = f"{current},{new_video}".strip(',')
             db.session.commit()
             return jsonify({"success": True})
-
-    if not log_entry.author_ref or log_entry.author_ref.secret_token != token:
-        return jsonify({"success": False, "message": "Unauthorized"}), 403
     
     if 'update_note_for_url' in data:
         target_url = data['update_note_for_url']
@@ -593,12 +754,6 @@ def save_logbook(log_id):
             ]
             setattr(log_entry, field, ",".join(updated))
 
-    if 'video_url' in data and 'delete_url' not in data and 'update_note_for_url' not in data:
-        new_url = data['video_url']
-        field = 'video_url_homework' if data.get('is_homework') else 'video_url'
-        existing = getattr(log_entry, field) or ""
-        setattr(log_entry, field, f"{existing},{new_url}" if existing else new_url)
-    
     if 'append' in data:
         field = 'photo_url' if 'photo_url' in data else ('video_url_homework' if data.get('is_homework') else 'video_url')
         new_url = data.get(field)
@@ -613,7 +768,7 @@ def save_logbook(log_id):
     db.session.commit()
     date_str = log_entry.date.strftime('%d %b %Y') if log_entry.date else ""
     return jsonify({"success": True, "date": date_str})
-
+    
 @app.route('/upload-media/<int:log_id>', methods=['POST'])
 @login_required 
 def handle_media_upload(log_id):
@@ -941,5 +1096,8 @@ def register():
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        
+    is_production = os.environ.get('RENDER') or os.environ.get('PORT')
+    
     port = int(os.environ.get("PORT", 5000)) 
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=not is_production)

@@ -28,6 +28,7 @@ check_user.py
 set_passwd.py
 shield.py
 GEMINI.md
+PROJECT_OVERVIEW.md
 requirements_old.txt
 test_drive.py
 trace_process.py
@@ -44,6 +45,7 @@ fix_dates_db.py
 
 # unwanted folders
 temp/
+instance/
 
 # Credentials
 client_secrets.json

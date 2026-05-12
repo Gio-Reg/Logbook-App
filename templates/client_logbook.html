@@ -1,6 +1,18 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% if access_level == 'viewer' %}
+<style>
+    .action-btn, .media-delete-btn, .photo-delete-btn, .ui-btn.minimize-btn, 
+    input.media-input, .docs-section button, .header-actions button {
+        display: none !important;
+    }
+    .editable-title {
+        pointer-events: none;
+    }
+</style>
+{% endif %}
+
 <script src="https://upload-widget.cloudinary.com/global/all.js" type="text/javascript"></script>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@1,500&display=swap" rel="stylesheet">
@@ -101,6 +113,21 @@
 	.warning-card p{color:#444;margin:0 0 15px;font-size:0.95em;line-height:1.5}
 	.warning-card button{background:#f57c00;color:#fff;border:none;padding:10px 20px;border-radius:6px;font-weight:bold;cursor:pointer;font-size:1em;transition:background 0.2s}
 	.warning-card button:hover{background:#e65100}
+	
+	.share-wrapper{position:relative;display:inline-block}
+	.share-menu{display:none;position:absolute;top:100%;right:0;background:#1a1a1a;border:1px solid var(--accent);border-radius:4px;z-index:1000;box-shadow:0 4px 15px rgba(0,0,0,0.5);min-width:140px;margin-top:5px}
+	.share-menu.active{display:block;animation:fadeIn 0.2s ease}
+	.share-menu button{width:100%;padding:10px;background:none;border:none;color:#ccc;text-align:left;font-size:0.8rem;cursor:pointer;display:flex;align-items:center;gap:8px}
+	.share-menu button:hover{background:var(--accent);color:#000}
+	.share-menu.mini{min-width:100px}
+	.log-share-icon{background:none;border:none;color:#666;cursor:pointer;transition:0.2s}
+	.log-share-icon:hover{color:var(--accent)}
+	@keyframes fadeIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+	
+	{% if access_level != 'owner' %}
+	#datepicker,.date-selection-row,.create-session-btn,.delete-log-btn{display:none!important}
+	{% endif %}
+
 </style>
 
 <div id="global-compressor-overlay" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; flex-direction:column; align-items:center; justify-content:center;">
@@ -114,13 +141,21 @@
 <div class="log-container">
 	<header class="mb-5 text-center">
 		<h1 class="text-white" style="display: inline-block;">{{ author.name }}'s Book</h1>
-		<button class="share-btn" title="Share Full Book" onclick="shareFullBook()" style="margin-left: 10px; vertical-align: middle;">
-			<i class="fas fa-share-nodes" style="font-size: 1.2rem;"></i>
-		</button>
+		{% if access_level == 'owner' %}
+		<div class="share-wrapper" style="display: inline-block; vertical-align: middle; margin-left: 10px;">
+			<button class="share-btn" title="Share Full Book" onclick="toggleShareMenu(event, 'full-book-menu')">
+				<i class="fas fa-share-nodes" style="font-size: 1.2rem;"></i>
+			</button>
+			<div id="full-book-menu" class="share-menu">
+				<button onclick="handleShareAction('viewer', 'full_book')"><i class="fas fa-eye"></i> As Viewer</button>
+				<button onclick="handleShareAction('editor', 'full_book')"><i class="fas fa-pen-to-square"></i> As Editor</button>
+			</div>
+		</div>
+		{% endif %}
 	</header>
     
 	<div class="main-controls" style="display:flex;gap:15px;justify-content:center;align-items:center;margin-bottom:35px;width:100%;">
-		{% if access_level in ['owner', 'editor']%}
+		{% if access_level == 'owner'%}
 		<button class="ui-btn" onclick="document.getElementById('dateJump').showPicker()">
 			<i class="fa-solid fa-calendar-days"></i> Select Session
 		</button>
@@ -153,9 +188,17 @@
 			</div>
 
 			<div class="header-actions">
-				<button class="share-btn" title="Share this session" onclick="event.stopPropagation(); shareSingleLog('{{ log.id }}')">
-					<i class="fas fa-share-nodes"></i>
-				</button>
+				{% if access_level == 'owner' %}
+				<div class="share-wrapper" style="display:inline-block;">
+					<button onclick="toggleShareMenu(event, 'log-menu-{{ log.id }}')" class="log-share-icon" title="Share this day">
+						<i class="fas fa-share-alt"></i>
+					</button>
+					<div id="log-menu-{{ log.id }}" class="share-menu mini">
+						<button onclick="handleShareAction('viewer', 'single_log', {{ log.id }})">Viewer</button>
+						<button onclick="handleShareAction('editor', 'single_log', {{ log.id }})">Editor</button>
+					</div>
+				</div>
+				{% endif %}
 				
 				{% if access_level in ['owner', 'editor'] %}
 				<button class="delete-btn" title="Delete log" onclick="event.stopPropagation(); deleteEntireLog('{{ log.id }}')">
@@ -278,7 +321,7 @@
 </div>
 
 <script>
-    const studentToken = "{{ author.secret_token }}";
+    const studentToken = "{{ view_token }}";
 
     function cleanFacebookUrl(url) {
         let cleanUrl = url.split('?')[0];
@@ -858,6 +901,7 @@ function goToHome() {
 }
 
 // 1. Initialize Editors
+const isViewer = "{{ access_level }}" === "viewer";
 const editors = {};
 document.querySelectorAll('.rich-editor').forEach(el => {
     const id = el.id.split('-')[1];
@@ -958,16 +1002,44 @@ async function saveFileToLog(logId, url) {
     }
 }
 
-function shareFullBook() {
-    const fullUrl = window.location.origin + window.location.pathname;
-    
-    // A simple, non-blocking confirmation
-    if (confirm("⚠️ SHARED ACCESS NOTICE\n\nThis link gives access to your ENTIRE book.\n\nAre you sure you want to copy the link for the WHOLE book?")) {
-        navigator.clipboard.writeText(fullUrl).then(() => {
-            showToast("🔗 FULL BOOK link copied to clipboard!");
+
+// Centralized Share Logic
+async function handleShareAction(role, type, logId = null) {
+    try {
+        const response = await fetch('/generate_share_link', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                role: role, 
+                access_type: type, 
+                log_id: logId 
+            })
         });
+        
+        const data = await response.json();
+        if (data.success) {
+            await navigator.clipboard.writeText(data.share_url);
+            showToast(`🔗 ${role.toUpperCase()} link for ${type.replace('_', ' ')} copied!`);
+            closeAllShareMenus();
+        }
+    } catch (err) {
+        showToast("Error generating link", "error");
     }
 }
+
+// UI Toggler
+function toggleShareMenu(event, menuId) {
+    event.stopPropagation();
+    closeAllShareMenus();
+    document.getElementById(menuId).classList.toggle('active');
+}
+
+function closeAllShareMenus() {
+    document.querySelectorAll('.share-menu').forEach(m => m.classList.remove('active'));
+}
+
+// Close menus if clicking elsewhere
+document.addEventListener('click', closeAllShareMenus);
 
 </script>
 {% endblock %}
