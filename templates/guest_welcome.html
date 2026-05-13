@@ -4,67 +4,81 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Welcome to TRACE</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        :root { --accent: #C5A059; --bg: #1a1a1a; --card: #242424; }
         body {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            min-height: 100vh;
-            background-color: #f4f7f6;
-            margin: 0;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex; align-items: center; justify-content: center;
+            min-height: 100vh; background-color: var(--bg); margin: 0;
+            font-family: 'Segoe UI', sans-serif; color: #fff;
         }
         .welcome-card {
-            background: white;
-            padding: 40px;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            max-width: 450px;
-            width: 90%;
+            background: var(--card); padding: 40px; border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); text-align: center;
+            max-width: 450px; width: 92%; border: 1px solid rgba(197, 160, 89, 0.2);
         }
         .logo-text {
-            font-weight: bold;
-            font-size: 2.5rem;
-            color: #2d3436;
-            margin-bottom: 10px;
-            letter-spacing: 2px;
+            font-weight: bold; font-size: 2.5rem; color: var(--accent);
+            margin-bottom: 5px; letter-spacing: 3px;
         }
-        h2 { color: #00b894; margin-bottom: 20px; }
-        p { color: #636e72; line-height: 1.6; font-size: 1.1rem; }
+        h2 { color: #fff; margin-bottom: 20px; font-weight: 300; }
+        p { color: #ccc; line-height: 1.6; font-size: 1rem; }
+        
+        /* Shared Links List */
+        .links-container { margin-top: 30px; text-align: left; }
+        .links-title { font-size: 0.9rem; color: var(--accent); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 15px; display: block; border-bottom: 1px solid rgba(197, 160, 89, 0.2); padding-bottom: 5px; }
+        .link-item {
+            display: flex; align-items: center; background: rgba(255,255,255,0.03);
+            padding: 15px; border-radius: 8px; margin-bottom: 12px;
+            text-decoration: none; color: #fff; border: 1px solid rgba(255,255,255,0.05);
+            transition: 0.2s;
+        }
+        .link-item:hover { background: rgba(197, 160, 89, 0.1); border-color: var(--accent); }
+        .link-item i { color: var(--accent); margin-right: 15px; font-size: 1.2rem; }
+        .link-info { flex-grow: 1; }
+        .link-type { display: block; font-weight: bold; font-size: 0.95rem; }
+        .link-role { font-size: 0.8rem; color: #888; }
+
         .btn-logout {
-            display: inline-block;
-            margin-top: 30px;
-            padding: 10px 25px;
-            background-color: #ff7675;
-            color: white;
-            text-decoration: none;
-            border-radius: 5px;
-            transition: 0.3s;
+            display: inline-block; margin-top: 25px; padding: 10px 20px;
+            background: transparent; color: #ff7675; text-decoration: none;
+            border-radius: 6px; border: 1px solid #ff7675; font-size: 0.9rem; transition: 0.3s;
         }
-        .btn-logout:hover { background-color: #d63031; }
+        .btn-logout:hover { background: rgba(255, 118, 117, 0.1); }
     </style>
 </head>
 <body>
 
     <div class="welcome-card">
         <div class="logo-text">TRACE</div>
-        <h2>Hello, {{ current_user.name }}!</h2>
+        <h2>Hello, {{ current_user.name }}</h2>
         
-        <p>
-            You are currently logged in as a <strong>Guest</strong>. 
-        </p>
-        <p>
-            To view your session logs, please click the <strong>specific link</strong> provided to you by your collegue, friend, instructor or trainer.
-        </p>
+        <p>You are logged in with <strong>{{ current_user.email }}</strong>.</p>
         
-        <hr style="border: 0; border-top: 1px solid #eee; margin: 20px 0;">
-        
-        <p style="font-size: 0.9rem;">
-            Not expecting to be here? 
-        </p>
-        <a href="{{ url_for('logout') }}" class="btn-logout">Logout</a>
+        <div class="links-container">
+            <span class="links-title">Authorized Access</span>
+            
+            {% if links %}
+                {% for link in links %}
+                <a href="{{ url_for('view_mybook', token=link.guest_token) }}" class="link-item">
+                    <i class="fa-solid {% if link.access_type == 'single_log' %}fa-file-lines{% else %}fa-book{% endif %}"></i>
+                    <div class="link-info">
+                        <span class="link-type">
+                            {% if link.access_type == 'single_log' %}Single Log Entry{% else %}Full Daily Logbook{% endif %}
+                        </span>
+                        <span class="link-role">Access as {{ link.role | capitalize }}</span>
+                    </div>
+                    <i class="fa-solid fa-chevron-right" style="font-size: 0.8rem; margin-right: 0; opacity: 0.5;"></i>
+                </a>
+                {% endfor %}
+            {% else %}
+                <p style="font-style: italic; font-size: 0.9rem;">No specific links associated with this email yet. Please use the link provided by your coach.</p>
+            {% endif %}
+        </div>
+
+        <a href="{{ url_for('logout') }}" class="btn-logout">
+            <i class="fa-solid fa-right-from-bracket"></i> Logout
+        </a>
     </div>
 
 </body>

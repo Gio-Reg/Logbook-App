@@ -155,11 +155,13 @@ class SharedAccess(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     owner_id = db.Column(db.Integer, db.ForeignKey('authors.id'), nullable=False)
     guest_token = db.Column(db.String(20), unique=True, default=lambda: str(uuid.uuid4())[:12])
-    role = db.Column(db.String(20)) # 'viewer' or 'editor'
-    access_type = db.Column(db.String(20)) # 'full_book', 'single_day', 'date_range', 'single_log'
-    target_id = db.Column(db.Integer, nullable=True) # Used for single_log
+    guest_email = db.Column(db.String(120), nullable=True) # <--- ADD THIS LINE
+    role = db.Column(db.String(20)) 
+    access_type = db.Column(db.String(20)) 
+    target_id = db.Column(db.Integer, nullable=True) 
     start_date = db.Column(db.Date, nullable=True)
     end_date = db.Column(db.Date, nullable=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc)) # Good for tracking    
 
 with app.app_context():
     db.create_all()
@@ -473,7 +475,9 @@ def index():
         user_has_logs = LogEntry.query.filter_by(author_id=current_user.id).first()
         
         if not current_user.is_admin and not user_has_logs:
-            return render_template('guest_welcome.html') 
+            authorized_links = SharedAccess.query.filter_by(guest_email=current_user.email.lower()).all()
+            
+            return render_template('guest_welcome.html', links=authorized_links) 
         
         return redirect(url_for('view_mybook', token=current_user.secret_token))
     
@@ -512,6 +516,10 @@ def view_mybook(token):
     book_owner = Author.query.filter_by(secret_token=token).first()
     
     if book_owner:
+        if not book_owner.is_approved:
+            flash("This account is currently inactive.")
+            return redirect(url_for('login'))
+        
         if current_user.is_authenticated and current_user.id == book_owner.id:
             # Case A1: Authorized Owner is viewing their own book
             access_level = 'owner'
@@ -524,8 +532,11 @@ def view_mybook(token):
                 flash("Your account is pending approval.")
                 return redirect(url_for('pending', next=request.url))
             
+            authorized_links = SharedAccess.query.filter_by(guest_email=current_user.email.lower()).all()
             # Redirect to the welcome "trap" page
-            return render_template('guest_welcome.html', author=book_owner)
+            return render_template('guest_welcome.html', 
+                                 author=book_owner, 
+                                 links=authorized_links)
             
         view_token = token
 
@@ -533,6 +544,27 @@ def view_mybook(token):
     else:
         access = SharedAccess.query.filter_by(guest_token=token).first_or_404()
         book_owner = Author.query.get(access.owner_id)
+        
+        # 🛡️ SECURITY GATE 1: Check if the Owner is still approved
+        if not book_owner.is_approved:
+            abort(403) # Forbidden: Owner account revoked
+
+        # 🛡️ SECURITY GATE 2: (Optional) Require Guest to be logged in
+        # If you want guests to have their own accounts to see the link:
+        if not current_user.is_authenticated:
+             return redirect(url_for('login', next=request.url))
+        
+        # --- NEW: SELF-CLAIMING LOGIC ---
+        if access.guest_email is None:
+            access.guest_email = current_user.email.lower()
+            db.session.commit()
+            
+        # SECURITY CHECK: If someone else tries to use this claimed link
+        elif access.guest_email.lower() != current_user.email.lower():
+            flash("This specific link belongs to another user.")
+            return redirect(url_for('view_mybook', token=book_owner.secret_token))
+        # -------------------------------
+             
         access_level = access.role  # 'viewer' or 'editor'
         view_token = access.guest_token
         
