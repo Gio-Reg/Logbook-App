@@ -16,29 +16,30 @@ depends_on = None
 
 def upgrade():
     # 1. Create the shared_access table
-    op.create_table('shared_access',
-        sa.Column('id', sa.Integer(), nullable=False),
-        sa.Column('owner_id', sa.Integer(), nullable=False),
-        sa.Column('guest_token', sa.String(length=20), nullable=True),
-        sa.Column('role', sa.String(length=20), nullable=True),
-        sa.Column('access_type', sa.String(length=20), nullable=True),
-        sa.Column('target_id', sa.Integer(), nullable=True),
-        sa.Column('start_date', sa.Date(), nullable=True),
-        sa.Column('end_date', sa.Date(), nullable=True),
-        sa.PrimaryKeyConstraint('id', name='pk_shared_access'),
-        sa.UniqueConstraint('guest_token', name='uq_shared_access_token'),
-        sa.ForeignKeyConstraint(['owner_id'], ['authors.id'], name='fk_shared_access_owner')
-    )
+    # op.create_table('shared_access',
+        # sa.Column('id', sa.Integer(), nullable=False),
+        # sa.Column('owner_id', sa.Integer(), nullable=False),
+        # sa.Column('guest_token', sa.String(length=20), nullable=True),
+        # sa.Column('role', sa.String(length=20), nullable=True),
+        # sa.Column('access_type', sa.String(length=20), nullable=True),
+        # sa.Column('target_id', sa.Integer(), nullable=True),
+        # sa.Column('start_date', sa.Date(), nullable=True),
+        # sa.Column('end_date', sa.Date(), nullable=True),
+        # sa.PrimaryKeyConstraint('id', name='pk_shared_access'),
+        # sa.UniqueConstraint('guest_token', name='uq_shared_access_token'),
+        # sa.ForeignKeyConstraint(['owner_id'], ['authors.id'], name='fk_shared_access_owner')
+    # )
 
     # 2. Fix the authors table constraints with explicit names
-    with op.batch_alter_table('authors', schema=None) as batch_op:
-        batch_op.alter_column('password_hash',
-               existing_type=sa.VARCHAR(length=256),
-               type_=sa.String(length=200),
-               existing_nullable=True)
-        batch_op.create_unique_constraint('uq_authors_google_id', ['google_id'])
-        batch_op.create_unique_constraint('uq_authors_email', ['email'])
-
+    # with op.batch_alter_table('authors', schema=None) as batch_op:
+        # batch_op.alter_column('password_hash',
+               # existing_type=sa.VARCHAR(length=256),
+               # type_=sa.String(length=200),
+               # existing_nullable=True)
+        # batch_op.create_unique_constraint('uq_authors_google_id', ['google_id'])
+        # batch_op.create_unique_constraint('uq_authors_email', ['email'])
+	pass
+	
 def downgrade():
     with op.batch_alter_table('authors', schema=None) as batch_op:
         batch_op.drop_constraint('uq_authors_email', type_='unique')
