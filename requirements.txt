@@ -18,10 +18,11 @@ requests==2.32.3
 
 # File & Media Handling
 cloudinary==1.42.2
+opencv-python-headless==4.13.0.92
 
-# Google APIs & AI (Strictly Coordinated Framework Alignment)
-google-auth==2.38.0
-google-auth-oauthlib==1.2.1
-google-auth-httplib2==0.2.1
-google-api-python-client==2.160.0
+# Google APIs & AI (Letting sub-dependencies resolve matching versions)
 google-genai==1.55.0
+google-api-python-client
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
