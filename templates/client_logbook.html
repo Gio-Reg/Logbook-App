@@ -165,6 +165,10 @@
 		<button class="ui-btn secondary-btn" onclick="goToHome()">
 			<i class="fa-solid fa-house"></i> Home
 		</button>
+	
+		<button class="ui-btn progress-pulse" onclick="unstickVideos()" style="background: transparent; border: 1px solid #ff4d4d; color: #ff4d4d;">
+			<i class="fas fa-undo"></i> Unstick Uploads
+		</button>
 		{% endif %}
 	</div>
 
@@ -178,9 +182,10 @@
 					{% if access_level in ['owner', 'editor'] %}
 						<input type="text" 
 							   class="editable-title" 
-							   value="{{ log.lesson_title if log.lesson_title else (log.context_id if log.context_id else 'Session Title') }}" 
-							   onblur="updateTitle('{{ log.id }}', this.value)"
-							   onkeydown="if(event.key==='Enter') this.blur()">
+							   value="{{ log.context_id if log.context_id else 'Daily Log' }}" 
+							   onclick="event.stopPropagation();" 
+							   onkeydown="if(event.key === 'Enter') { this.blur(); sendUpdate('{{ log.id }}', { lesson_title: this.value }); }"
+						>
 					{% else %}
 						<span style="color: #fff; font-size: 1.1rem;">{{ log.lesson_title if log.lesson_title else (log.context_id if log.context_id else 'Session Title') }}</span>
 					{% endif %}
@@ -474,7 +479,18 @@
                 mediaElement = `<video crossorigin="anonymous" controls playsinline preload="metadata" src="${mediaUrl}"></video>`;
             } else if (mediaUrl.includes("drive.google.com")) {
                 let driveId = mediaUrl.includes("/file/d/") ? mediaUrl.split("/file/d/")[1].split("/")[0] : mediaUrl.split("id=")[1].split("&")[0];
-                mediaElement = `<div class="drive-container" style="width:100%; height:100%; position:relative; background:#000; cursor:pointer;" onclick="this.innerHTML='<iframe src=\\'https://drive.google.com/file/d/${driveId}/preview\\' style=\\'width:100%; height:100%; border:none;\\' allow=\\'autoplay; fullscreen\\' allowfullscreen=\\'true\\'></iframe>';"><img src="https://drive.google.com/thumbnail?id=${driveId}&sz=w800" style="width:100%; height:100%; object-fit:cover; opacity:0.8;" alt="Thumbnail"><div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:48px; pointer-events:none;"><i class="fas fa-play-circle"></i></div></div>`;
+                
+                // Point directly to your clean backend proxy route
+                const streamUrl = `/stream-drive/${driveId}`;
+                
+                mediaElement = `
+                    <div class="drive-container" style="width:100%; height:100%; position:relative; background:#000; cursor:pointer;" 
+                         onclick="this.innerHTML='<video src=\\'${streamUrl}\\' controls playsinline autoplay preload=\\'auto\\' crossorigin=\\'anonymous\\' style=\\'width:100%; height:100%; object-fit:contain; background:#000; display:block;\\'></video>';">
+                        <img src="https://drive.google.com/thumbnail?id=${driveId}&sz=w800" style="width:100%; height:100%; object-fit:cover; opacity:0.8;" alt="Thumbnail">
+                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:48px; pointer-events:none;">
+                            <i class="fas fa-play-circle"></i>
+                        </div>
+                    </div>`;        
             } else if (mediaUrl.includes("tiktok.com")) {
                 const id = mediaUrl.match(/\/video\/(\d+)/)?.[1];
                 mediaElement = `<iframe src="https://www.tiktok.com/embed/v2/${id}" scrolling="no" allowfullscreen="true"></iframe>`;
@@ -1040,6 +1056,23 @@ function closeAllShareMenus() {
 
 // Close menus if clicking elsewhere
 document.addEventListener('click', closeAllShareMenus);
+
+async function unstickVideos() {
+    if (!confirm("Are you sure you want to clear stuck upload states for YouTube and Google Drive?")) return;
+    try {
+        const response = await fetch('/unstick-upload');
+        const data = await response.json();
+        if (data.success) {
+            alert(`Cleared ${data.cleared_count} stuck uploads successfully!`);
+            location.reload();
+        } else {
+            alert("Failed to clear states: " + (data.error || "Unknown Error"));
+        }
+    } catch (err) {
+        console.error("Error unsticking videos:", err);
+        alert("Network error trying to unstick videos.");
+    }
+}
 
 </script>
 {% endblock %}

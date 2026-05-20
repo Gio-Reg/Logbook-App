@@ -27,8 +27,6 @@ check_db.py
 check_user.py
 set_passwd.py
 shield.py
-GEMINI.md
-PROJECT_OVERVIEW.md
 requirements_old.txt
 test_drive.py
 trace_process.py
@@ -42,6 +40,8 @@ cleanup_user.py
 rescue_data.py
 realignment_db.py
 fix_dates_db.py
+get_drive_token.py
+*.md
 
 # unwanted folders
 temp/
@@ -52,5 +52,5 @@ client_secrets.json
 service_account.json
 token.pickle
 token_base64.txt
-
+old_token_b64.txt
 

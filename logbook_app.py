@@ -2,7 +2,7 @@ import os, io, uuid, threading, subprocess, json, pickle, base64, re, time
 from datetime import datetime, timedelta, timezone, date as dt_date
 
 # Flask & Security
-from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, flash, send_from_directory
+from flask import Flask, render_template, request, jsonify, redirect, url_for, abort, session, flash, send_from_directory, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
 from flask_migrate import Migrate
@@ -198,6 +198,7 @@ def get_gdrive_service():
             flow = InstalledAppFlow.from_client_secrets_file(
                 'client_secrets.json', ['https://www.googleapis.com/auth/drive'])
             creds = flow.run_local_server(port=0)
+            #creds = flow.run_local_server(port=5001, prompt='consent')
         
         # Changed: Save back as Base64 text
         with open('token_base64.txt', 'w') as f:
@@ -360,31 +361,42 @@ def run_ai_shield_with_fallback(file_path):
     return decision
      
 def process_video_size(file_path):
-    MAX_SIZE_BYTES = 70 * 1024 * 1024
+    import subprocess
+    # Check the actual file size
     file_size = os.path.getsize(file_path)
+    MAX_SIZE_BYTES = 70 * 1024 * 1024  # 70MB
+    
+    output_path = file_path.replace(".mp4", "_processed.mp4")
     
     if file_size <= MAX_SIZE_BYTES:
-        print(f"✅ Under 70MB ({file_size / 1024 / 1024:.2f}MB). Uploading original.")
-        return file_path
-    
-    print(f"📦 Over 70MB. Compressing video...")
-    output_path = file_path.replace(".mp4", "_compressed.mp4")
-    
-    cmd = [
-        'ffmpeg', '-y', '-i', input_path,
-        '-vf', 'scale=-2:720',
-        '-c:v', 'libx264',
-        '-crf', '28',
-        '-preset', 'ultrafast',
-        '-tune', 'zerolatency',
-        '-x264opts', 'rc-lookahead=5:bframes=1:ref=1',
-        '-threads', '1',
-        '-c:a', 'aac', '-b:a', '128k',
-        output_path
-    ]
+        # RULES PRESERVED: File is under 70MB. We do NOT re-encode or compress it.
+        # This instantly re-wraps the container properties in less than 0.5 seconds.
+        print(f"✅ Under 70MB ({file_size / 1024 / 1024:.2f}MB). Instant copy & faststart optimize.", flush=True)
+        cmd = [
+            'ffmpeg', '-y', '-i', file_path,
+            '-c:v', 'copy',                    # Copy video track instantly without encoding
+            '-c:a', 'copy',                    # Copy audio track instantly without encoding
+            '-movflags', '+faststart',         # Instantly shifts maps to the front for streaming
+            output_path
+        ]
+    else:
+        # File is over 70MB. Shrink and compress it down.
+        print(f"⚡ Over 70MB ({file_size / 1024 / 1024:.2f}MB). Compressing asset down...")
+        cmd = [
+            'ffmpeg', '-y', '-i', file_path,
+            '-vf', 'scale=-2:720',
+            '-c:v', 'libx264', '-crf', '25',
+            '-preset', 'ultrafast',
+            '-tune', 'zerolatency',
+            '-movflags', '+faststart',
+            '-threads', '0',
+            '-c:a', 'aac', '-b:a', '128k',
+            output_path
+        ]
+        
     subprocess.run(cmd, check=True)
     return output_path
-
+    
 # --- Flask routes ---
 
 @app.route('/login', methods=['GET', 'POST'])
@@ -509,7 +521,40 @@ def generate_share_link():
     share_url = url_for('view_mybook', token=new_token, _external=True)
     
     return jsonify({"success": True, "share_url": share_url})
-    
+
+@app.route('/stream-drive/<file_id>')
+def stream_drive_file(file_id):
+    import requests
+    try:
+        service = get_gdrive_service()
+        creds = service._http.credentials
+        
+        if not creds.valid:
+            from google.auth.transport.requests import Request
+            creds.refresh(Request())
+            
+        headers = {'Authorization': f'Bearer {creds.token}'}
+        if 'Range' in request.headers:
+            headers['Range'] = request.headers['Range']
+            
+        url = f'https://www.googleapis.com/drive/v3/files/{file_id}?alt=media&supportsAllDrives=true'
+        google_response = requests.get(url, headers=headers, stream=True)
+        
+        response_headers = []
+        for key, val in google_response.headers.items():
+            if key.lower() in ['content-range', 'accept-ranges', 'content-length']:
+                response_headers.append((key, val))
+                
+        return Response(
+            google_response.iter_content(chunk_size=128 * 1024),
+            status=google_response.status_code,
+            mimetype='video/mp4',
+            headers=response_headers
+        )
+    except Exception as e:
+        print(f"❌ Pass-through Streaming Error: {e}", flush=True)
+        return "Streaming pipeline failure", 500
+                    
 @app.route('/mybook/<token>')
 def view_mybook(token):
     # --- SCENARIO A: The Master Token (Owner or Master Link Visitor) ---
@@ -960,27 +1005,65 @@ def delete_log(log_id):
 @login_required 
 def unstick_upload():
     try:
-        stuck_main = LogEntry.query.filter_by(video_url="PROCESSING_YOUTUBE").all()
-        stuck_hw = LogEntry.query.filter_by(video_url_homework="PROCESSING_YOUTUBE").all()
+        # Fetch all logs for the current user to scan their text fields
+        logs = LogEntry.query.filter_by(author_id=current_user.id).all()
+        count = 0
         
-        all_stuck = stuck_main + stuck_hw
-        
-        if all_stuck:
-            count = 0
-            for entry in stuck_main:
-                entry.video_url = None
-                count += 1
-            for entry in stuck_hw:
-                entry.video_url_homework = None
-                count += 1
+        for entry in logs:
+            updated = False
             
+            # Clean main video slots
+            if entry.video_url:
+                # Split strings by comma to inspect individual placeholders
+                items = [i.strip() for i in entry.video_url.split(',') if i.strip()]
+                
+                # Identify items that are stuck processing strings
+                stuck_items = [i for i in items if ("processing" in i.lower() or "vault" in i.lower() or i.upper() == "LOADING")]
+                
+                # Keep items ONLY if they are real links or don't match stuck words
+                cleaned = [i for i in items if i not in stuck_items]
+                
+                if len(items) != len(cleaned):
+                    entry.video_url = ",".join(cleaned)
+                    updated = True
+                    count += 1
+                    
+            # Clean homework video slots
+            if entry.video_url_homework:
+                items = [i.strip() for i in entry.video_url_homework.split(',') if i.strip()]
+                stuck_items = [i for i in items if ("processing" in i.lower() or "vault" in i.lower() or i.upper() == "LOADING")]
+                cleaned = [i for i in items if i not in stuck_items]
+                
+                if len(items) != len(cleaned):
+                    entry.video_url_homework = ",".join(cleaned)
+                    updated = True
+                    count += 1
+            
+            if updated:
+                db.session.add(entry)
+                
+        # --- NEW: SYSTEM CACHE & TEMP DISK PURGE SEQUENCE ---
+        temp_dir = 'temp'
+        if os.path.exists(temp_dir):
+            for filename in os.listdir(temp_dir):
+                file_path = os.path.join(temp_dir, filename)
+                try:
+                    # Safely remove files without breaking directory architecture
+                    if os.path.isfile(file_path) or os.path.islink(file_path):
+                        os.unlink(file_path)
+                except Exception as file_err:
+                    print(f"Skipped removing file {file_path}: {file_err}")
+        # ----------------------------------------------------
+
+        if count > 0:
             db.session.commit()
-            return f"Cleaned up {count} stuck log(s). Your dashboard is now clear!"
+            return jsonify({"success": True, "cleared_count": count})
             
-        return "No stuck uploads found. Everything looks good!"
+        return jsonify({"success": True, "cleared_count": 0})
     except Exception as e:
         db.session.rollback()
-        return f"Error: {str(e)}", 500
+        print("Error clearing stuck uploads:", e)
+        return jsonify({"success": False, "error": str(e)}), 500
         
 @app.route('/get_upload_token')
 @login_required
@@ -1132,4 +1215,4 @@ if __name__ == "__main__":
     is_production = os.environ.get('RENDER') or os.environ.get('PORT')
     
     port = int(os.environ.get("PORT", 5000)) 
-    app.run(host='0.0.0.0', port=port, debug=not is_production)
+    app.run(host='0.0.0.0', port=port, debug=not is_production, threaded=True)
