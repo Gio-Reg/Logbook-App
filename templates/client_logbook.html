@@ -73,7 +73,7 @@
     .photo-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 15px; margin-bottom: 30px; }
 	.photo-item{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:visible!important;border:1px solid #444;background:#111;transition:transform .3s ease;z-index:1}.photo-item:hover{transform:scale(2.7);z-index:100!important;box-shadow:0 10px 30px rgba(0,0,0,0.8);border-color:var(--accent)}.photo-item img{width:100%;height:100%;object-fit:cover;display:block;cursor:pointer;border-radius:12px}
     .photo-item img { width: 100%; height: 100%; object-fit: cover; transition: 0.3s ease; cursor: pointer; }
-    .photo-delete-btn { position: absolute; top: 8px; right: 8px; width: 26px; height: 26px; border: none; border-radius: 50%; background: var(--danger); color: white; font-weight: bold; display: none; align-items: center; justify-content: center; cursor: pointer; z-index: 10; font-size: 14px; }
+	.photo-delete-btn{position:absolute;top:5px;right:5px;width:24px;height:24px;background:#ff4444;color:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;cursor:pointer;border:none;box-shadow:0 2px 4px rgba(0,0,0,0.3);z-index:10;transition:transform 0.2s}.photo-delete-btn:hover{transform:scale(1.1);background:#cc0000}
     .photo-item:hover .photo-delete-btn { display: flex; }
 
     /* UI Elements */
@@ -480,17 +480,11 @@
             } else if (mediaUrl.includes("drive.google.com")) {
                 let driveId = mediaUrl.includes("/file/d/") ? mediaUrl.split("/file/d/")[1].split("/")[0] : mediaUrl.split("id=")[1].split("&")[0];
                 
-                // Point directly to your clean backend proxy route
+                // Use your reliable backend streaming proxy path
                 const streamUrl = `/stream-drive/${driveId}`;
                 
-                mediaElement = `
-                    <div class="drive-container" style="width:100%; height:100%; position:relative; background:#000; cursor:pointer;" 
-                         onclick="this.innerHTML='<video src=\\'${streamUrl}\\' controls playsinline autoplay preload=\\'auto\\' crossorigin=\\'anonymous\\' style=\\'width:100%; height:100%; object-fit:contain; background:#000; display:block;\\'></video>';">
-                        <img src="https://drive.google.com/thumbnail?id=${driveId}&sz=w800" style="width:100%; height:100%; object-fit:cover; opacity:0.8;" alt="Thumbnail">
-                        <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); color:white; font-size:48px; pointer-events:none;">
-                            <i class="fas fa-play-circle"></i>
-                        </div>
-                    </div>`;        
+                // Native HTML5 video player with metadata preloading acts as an instant auto-thumbnail!
+                mediaElement = `<video controls playsinline preload="metadata" crossorigin="anonymous" src="${streamUrl}" style="width:100%; height:100%; object-fit:contain; background:#000; display:block;"></video>`;        
             } else if (mediaUrl.includes("tiktok.com")) {
                 const id = mediaUrl.match(/\/video\/(\d+)/)?.[1];
                 mediaElement = `<iframe src="https://www.tiktok.com/embed/v2/${id}" scrolling="no" allowfullscreen="true"></iframe>`;

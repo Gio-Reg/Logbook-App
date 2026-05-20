@@ -19,8 +19,9 @@ requests==2.32.3
 # File & Media Handling
 cloudinary==1.42.2
 
-# Google APIs & AI
+# Google APIs & AI (Version Aligned to Fix Regional Error)
+google-auth==2.30.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0
+google-api-python-client==2.133.0
 google-genai==1.55.0
-google-api-python-client==2.187.0
-google-auth-oauthlib==1.2.3
-google-auth-httplib2==0.2.1
