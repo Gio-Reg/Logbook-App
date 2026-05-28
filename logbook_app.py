@@ -1001,6 +1001,49 @@ def delete_log(log_id):
     db.session.commit()
     return jsonify({"success": True})
 
+@app.route('/update-log-date/<int:log_id>', methods=['POST'])
+@login_required
+def update_log_date(log_id):
+    try:
+        log = LogEntry.query.get_or_404(log_id)
+        data = request.get_json() or {}
+        new_date_str = data.get('date')
+        
+        if not new_date_str:
+            return jsonify({'success': False, 'error': 'Missing date asset input'}), 400
+            
+        # Parse standard HTML5 format to datetime
+        target_date = datetime.strptime(new_date_str, '%Y-%m-%d')
+        
+        # Pull baseline text string for structural identity checks
+        current_title = ""
+        if log.notes_coach_after:
+            lines = log.notes_coach_after.split('\n')
+            if lines:
+                current_title = lines[0].strip()
+
+        # Database Check: Verify no pre-existing same date + same title logs exist
+        all_logs_on_date = LogEntry.query.filter(
+            LogEntry.author_id == log.author_id,
+            LogEntry.id != log.id
+        ).all()
+        
+        for sibling in all_logs_on_date:
+            if sibling.date and sibling.date.strftime('%Y-%m-%d') == new_date_str:
+                sibling_title = sibling.notes_coach_after.split('\n')[0].strip() if sibling.notes_coach_after else ""
+                if sibling_title.lower() == current_title.lower():
+                    return jsonify({'success': False, 'error': 'A log entry with this exact title already exists on that target date.'}), 400
+
+        # Pass logic confirmation
+        log.date = target_date
+        db.session.commit()
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        print(f"❌ Error updating log context date: {e}")
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/unstick-upload')
 @login_required 
 def unstick_upload():

@@ -41,6 +41,7 @@ rescue_data.py
 realignment_db.py
 fix_dates_db.py
 get_drive_token.py
+logbook_backup_on_gdrive.sh
 *.md
 
 # unwanted folders
@@ -52,5 +53,5 @@ client_secrets.json
 service_account.json
 token.pickle
 token_base64.txt
-old_token_b64.txt
+old_token_base64.txt
 

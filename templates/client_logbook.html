@@ -101,6 +101,9 @@
     .magic-push-overlay:hover{transform:translateX(-50%) scale(1.05);box-shadow:0 15px 40px var(--accent)}
 
     .compact-date-input{background:#000;border:1px solid var(--border);color:#fff;padding:8px;border-radius:6px;font-family:inherit;outline:none}.compact-date-input::-webkit-calendar-picker-indicator{filter:invert(1)}
+    .editable-date{background:transparent!important;border:none!important;color:var(--accent)!important;font-family:'Inter',sans-serif;font-size:0.85rem;font-weight:bold;cursor:pointer;padding:4px;border-radius:4px;outline:none;transition:background 0.2s}
+	.editable-date:focus{background:rgba(255,255,255,0.05)!important;border-bottom:1px solid var(--accent)!important}
+	.editable-date::-webkit-calendar-picker-indicator{filter:invert(71%) sepia(21%) saturate(978%) hue-rotate(341deg) brightness(91%) contrast(85%);cursor:pointer;margin-left:4px}
     .calendar-nav{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:30px;padding:15px;background:var(--card);border:1px solid var(--border);border-radius:12px}.compact-date-input{background:#000;border:1px solid var(--border);color:#fff;padding:8px;border-radius:6px;outline:none}.compact-date-input::-webkit-calendar-picker-indicator{filter:invert(1)}
     .log-entry-item:target{border:2px solid var(--accent);box-shadow:0 0 20px rgba(255,215,0,.3)}
 
@@ -174,23 +177,32 @@
 	</div>
 
     {% for log in logs %}
-    <div class="log-entry-item" id="entry_{{ log.id }}">        
-        <div class="log-header" onclick="toggleEntry(this)">
+	<div class="log-entry-item" id="entry_{{ log.id }}">        
+		<div class="log-header" onclick="toggleEntry(this)">
 			<div style="display: flex; align-items: center; flex: 1;">
-				<span class="date-badge">{{ log.date.strftime('%d %b %Y') if log.date else 'Date N/A' }}</span>
 				
+				{% if access_level in ['owner', 'editor'] %}
+					<input type="date" 
+						   class="editable-date logbook-date-field" 
+						   value="{{ log.date.strftime('%Y-%m-%d') if log.date else '' }}" 
+						   data-current-date="{{ log.date.strftime('%Y-%m-%d') if log.date else '' }}"
+						   onclick="event.stopPropagation();" 
+						   onchange="validateAndSaveDate('{{ log.id }}', this)">
+				{% else %}
+					<span class="date-badge">{{ log.date.strftime('%d %b %Y') if log.date else 'Date N/A' }}</span>
+				{% endif %}
+
 				<div style="margin-left: 15px; flex: 1;" onclick="event.stopPropagation()">
 					{% if access_level in ['owner', 'editor'] %}
-						<input type="text" 
-							   class="editable-title" 
+						<input type="text" class="editable-title lesson-title" 
 							   value="{{ log.context_id if log.context_id else 'Daily Log' }}" 
-							   onclick="event.stopPropagation();" 
-							   onkeydown="if(event.key === 'Enter') { this.blur(); sendUpdate('{{ log.id }}', { lesson_title: this.value }); }"
-						>
+							   onclick="event.stopPropagation();"
+							   onchange="updateTitle('{{ log.id }}', this.value)">
 					{% else %}
 						<span style="color: #fff; font-size: 1.1rem;">{{ log.lesson_title if log.lesson_title else (log.context_id if log.context_id else 'Session Title') }}</span>
 					{% endif %}
 				</div>
+				
 			</div>
 
 			<div class="header-actions">
@@ -519,6 +531,61 @@
             slot.querySelector('.minimize-btn').onclick = (e) => { e.stopPropagation(); container.classList.remove('is-open'); };
         });
     }
+    
+    async function validateAndSaveDate(logId, inputElement) {
+		const newDate = inputElement.value;
+		const originalDate = inputElement.getAttribute('data-current-date');
+		
+		if (!newDate || newDate === originalDate) return;
+
+		// Isolate title properties using your structure layout
+		const parentEntry = inputElement.closest('.log-entry-item');
+		const titleInput = parentEntry.querySelector('.editable-title');
+		const cleanTitle = titleInput ? titleInput.value.trim().toLowerCase() : '';
+
+		// Guard: Prevent Date + Title matching collisions
+		let isDuplicate = false;
+		document.querySelectorAll('.log-entry-item').forEach(el => {
+			if (el.id !== `entry_${logId}`) {
+				const siblingDateEl = el.querySelector('.logbook-date-field');
+				const siblingTitleEl = el.querySelector('.editable-title');
+				
+				if (siblingDateEl && siblingTitleEl) {
+					if (siblingDateEl.value === newDate && siblingTitleEl.value.trim().toLowerCase() === cleanTitle) {
+						isDuplicate = true;
+					}
+				}
+			}
+		});
+
+		if (isDuplicate) {
+			showToast("⚠️ A logbook with this title already exists on this date!");
+			inputElement.value = originalDate;
+			return;
+		}
+
+		try {
+			const response = await fetch(`/update-log-date/${logId}`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ date: newDate })
+			});
+			const data = await response.json();
+			
+			if (data.success) {
+				inputElement.setAttribute('data-current-date', newDate);
+				showToast("📅 Date updated successfully!");
+				setTimeout(() => location.reload(), 600); // Reload keeps sequence groups perfectly ordered
+			} else {
+				showToast("❌ " + (data.error || "Update rejected"));
+				inputElement.value = originalDate;
+			}
+		} catch (err) {
+			console.error("Network sync failure:", err);
+			showToast("❌ Server sync error");
+			inputElement.value = originalDate;
+		}
+	}
 
     function toggleEntry(header) {
         header.nextElementSibling.classList.toggle('active');
